@@ -46,11 +46,6 @@ Do **not** read these upfront. Read the one that matches what you are about to d
 
 <!-- BEGIN GENERATED: workspaces -->
 ```
-apps/
-  server/
-  web/
-packages/
-  typescript-config/
 ```
 <!-- END GENERATED: workspaces -->
 
