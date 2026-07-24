@@ -5,10 +5,10 @@ reads this file first and picks up from it.
 
 Update it after every task. Never batch updates.
 
-- **Status:** in-progress
+- **Status:** in-review
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** 4 (Slice 1)
+- **Current task:** Slice 1 complete — awaiting human review + PR merge
 
 ---
 
@@ -37,7 +37,7 @@ In dependency order. Each task must be independently testable and map to test ID
 | 1 | Scaffold `packages/engine` (package.json, tsconfig, workspace wiring) + `types.ts` Zod schemas (Confidence, Provenance, SelectionResult) | — | — | 1 | `done` | 1/3 | 5ff36ed |
 | 2 | Next.js playbook: framework detection from manifest + convention auth anchor globs | 1 | T-01 | 1 | `done` | 1/3 | 4ccbbd7 |
 | 3 | `select("auth")` tier-1 path: apply playbook anchors, emit provenance + high confidence | 2 | T-02, T-03, T-16 | 1 | `done` | 1/3 | (this commit) |
-| 4 | `recall.ts`: precision/recall diff of selected vs labelled anchors + one next-auth fixture | 1 | T-04 | 1 | `pending` | 0/3 | — |
+| 4 | `recall.ts`: precision/recall diff of selected vs labelled anchors + one next-auth fixture | 1 | T-04 | 1 | `done` | 1/3 | (this commit) |
 | 5 | `ignore.ts`: ignore-list (always-ignore floor + `.gitignore`) → kept universe | 1 | T-05 | 2 | `pending` | 0/3 | — |
 | 6 | `bucket.ts`: bucket kept files (classified / known-category / genuine-unknown) + coverage % | 5, 3 | T-06, T-07, T-08 | 2 | `pending` | 0/3 | — |
 | 7 | Remainder clustering: surface only ≥N-file clusters or high-fan-in singles | 6 | T-09 | 2 | `pending` | 0/3 | — |
@@ -72,7 +72,7 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 
 | Slice | Contains | Files | State | PR |
 |---|---|---|---|---|
-| 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | ~6 | `pending` | — |
+| 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | 8 | `in-review` | — |
 | 2 | Tasks 5–7 — universe + coverage ledger | ~2 | `pending` | — |
 | 3 | Tasks 8–9 — dependency graph + fan-in | ~2 | `pending` | — |
 | 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | ~2 | `pending` | — |
@@ -103,11 +103,22 @@ A revision on a task that was failing gets extra scrutiny from the human reviewe
 
 Newest first. Keep entries short — this is a handoff, not a diary.
 
-### 2026-07-24
+### 2026-07-24 (Slice 1 complete)
 
-- **Done:** Spec scaffolded from ADR-001 Future work. Four files written, slice plan drafted.
-- **State:** Awaiting human approval at the spec gate. Status `draft` → not yet `approved`.
-- **Next:** Resolve the four open questions in `design.md`; on approval, start Slice 1 / Task 1.
-- **Watch out for:** The harness is deliberately LLM-free — do not add the explanation call,
-  tree-sitter spans, or any request-path machinery. The cite-failure threshold (D-19) is
-  **not** derivable here; only two of the ADR's three thresholds settle in this harness.
+- **Done:** Tasks 1–4. Engine package scaffold + Zod types (5ff36ed), Next.js detection +
+  auth globs (4ccbbd7), tier-1 selection (e22fde1), recall diff + skeleton (this commit).
+  11 tests pass, typecheck clean.
+- **State:** Slice 1 (walking skeleton: tier-1 recall on one fixture) done and green.
+  Awaiting human review + PR merge. `summary.md` written.
+- **Next:** After merge, `/clear`, then `implement selection-harness` for Slice 2
+  (universe + coverage ledger, Tasks 5–7).
+- **Watch out for:** `select` tiers 2/3 are an intentional empty fallthrough (tier 3 / low)
+  until Slice 4 — that placeholder gets replaced, not extended. NodeNext requires `.js`
+  extensions on all relative imports. The harness stays LLM-free; the cite-failure threshold
+  (D-19) is not derivable here (only two of three thresholds settle in this harness).
+
+### 2026-07-24 (spec scaffold)
+
+- **Done:** Spec scaffolded from ADR-001 Future work. Four files written, slice plan approved,
+  four open questions resolved at the gate.
+- **State:** Slice plan approved; Slice 1 started.
