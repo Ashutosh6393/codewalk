@@ -57,6 +57,65 @@ function isKnownCategory(path: string): boolean {
   return knownCategoryMatchers.some((m) => m.match(path));
 }
 
+/**
+ * A surfaced piece of the genuine-unknown remainder (ADR D-20). Either a folder of
+ * several unknowns worth a look, or a single file so widely imported it matters despite
+ * being alone.
+ */
+export interface RemainderCluster {
+  /** The folder for a cluster; the file's own folder for a high-fan-in single. */
+  dir: string;
+  files: string[];
+  reason: "cluster" | "high-fan-in";
+}
+
+const dirOf = (path: string): string => {
+  const slash = path.lastIndexOf("/");
+  return slash === -1 ? "" : path.slice(0, slash);
+};
+
+/**
+ * Surface only the parts of the unknown remainder worth a human's attention (T-09):
+ * folders holding `minCluster`+ unknown files, and singles with fan-in at or above
+ * `fanInThreshold`. A lone low-fan-in util stays hidden — the point is signal, not a
+ * wall of every unclassified file.
+ */
+export function clusterRemainder(
+  unknown: string[],
+  opts: {
+    minCluster?: number;
+    fanIn?: ReadonlyMap<string, number>;
+    fanInThreshold?: number;
+  } = {},
+): RemainderCluster[] {
+  const minCluster = opts.minCluster ?? 3;
+  const fanInThreshold = opts.fanInThreshold ?? 3;
+
+  // Group by folder, preserving first-appearance order.
+  const byDir = new Map<string, string[]>();
+  for (const path of unknown) {
+    const dir = dirOf(path);
+    (byDir.get(dir) ?? byDir.set(dir, []).get(dir)!).push(path);
+  }
+
+  const clusters: RemainderCluster[] = [];
+  const singles: RemainderCluster[] = [];
+  for (const [dir, files] of byDir) {
+    if (files.length >= minCluster) {
+      clusters.push({ dir, files, reason: "cluster" });
+      continue;
+    }
+    // Sub-threshold folder: rescue individually important files by fan-in.
+    for (const file of files) {
+      if ((opts.fanIn?.get(file) ?? 0) >= fanInThreshold) {
+        singles.push({ dir, files: [file], reason: "high-fan-in" });
+      }
+    }
+  }
+
+  return [...clusters, ...singles];
+}
+
 export function bucket(kept: string[], classified: string[]): CoverageLedger {
   const classifiedSet = new Set(classified);
   const inClassified: string[] = [];
