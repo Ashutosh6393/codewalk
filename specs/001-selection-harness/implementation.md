@@ -8,7 +8,7 @@ Update it after every task. Never batch updates.
 - **Status:** in-review
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** Slice 1 complete — awaiting human review + PR merge
+- **Current task:** Slice 2 complete — awaiting human review + PR merge (Slice 1 also still unmerged)
 
 ---
 
@@ -38,9 +38,9 @@ In dependency order. Each task must be independently testable and map to test ID
 | 2 | Next.js playbook: framework detection from manifest + convention auth anchor globs | 1 | T-01 | 1 | `done` | 1/3 | 4ccbbd7 |
 | 3 | `select("auth")` tier-1 path: apply playbook anchors, emit provenance + high confidence | 2 | T-02, T-03, T-16 | 1 | `done` | 1/3 | (this commit) |
 | 4 | `recall.ts`: precision/recall diff of selected vs labelled anchors + one next-auth fixture | 1 | T-04 | 1 | `done` | 1/3 | 54d93ac |
-| 5 | `ignore.ts`: ignore-list (always-ignore floor + `.gitignore`) → kept universe | 1 | T-05 | 2 | `done` | 1/3 | (slice 2) |
-| 6 | `bucket.ts`: bucket kept files (classified / known-category / genuine-unknown) + coverage % | 5, 3 | T-06, T-07, T-08 | 2 | `done` | 1/3 | (slice 2) |
-| 7 | Remainder clustering: surface only ≥N-file clusters or high-fan-in singles | 6 | T-09 | 2 | `done` | 1/3 | (slice 2) |
+| 5 | `ignore.ts`: ignore-list (always-ignore floor + `.gitignore`) → kept universe | 1 | T-05 | 2 | `done` | 1/3 | 22345c0 |
+| 6 | `bucket.ts`: bucket kept files (classified / known-category / genuine-unknown) + coverage % | 5, 3 | T-06, T-07, T-08 | 2 | `done` | 1/3 | bb8d124 |
+| 7 | Remainder clustering: surface only ≥N-file clusters or high-fan-in singles | 6 | T-09 | 2 | `done` | 1/3 | 5279892 |
 | 8 | `graph.ts`: dependency-cruiser adapter — import graph + alias resolution; add dep to `tech-stack.yaml` | 1 | T-10 | 3 | `pending` | 0/3 | — |
 | 9 | Fan-in computation from the graph | 8 | T-11 | 3 | `pending` | 0/3 | — |
 | 10 | `dictionary/auth.ts`: auth keyword/symbol dictionary (tier 2) | 1 | T-13 | 4 | `pending` | 0/3 | — |
@@ -73,7 +73,7 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 | Slice | Contains | Files | State | PR |
 |---|---|---|---|---|
 | 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | 8 | `in-review` | — |
-| 2 | Tasks 5–7 — universe + coverage ledger | ~2 | `pending` | — |
+| 2 | Tasks 5–7 — universe + coverage ledger | 5 | `in-review` | — |
 | 3 | Tasks 8–9 — dependency graph + fan-in | ~2 | `pending` | — |
 | 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | ~2 | `pending` | — |
 | 5 | Tasks 13–14 — measurement over the labelled set | ~3 | `pending` | — |
@@ -102,6 +102,25 @@ A revision on a task that was failing gets extra scrutiny from the human reviewe
 ## Session notes
 
 Newest first. Keep entries short — this is a handoff, not a diary.
+
+### 2026-07-25 (Slice 2 complete)
+
+- **Done:** Tasks 5–7. Kept-universe ignore-list via the `ignore` matcher (22345c0),
+  coverage-ledger bucketing (bb8d124), remainder clustering (5279892). 18 tests pass (+7),
+  typecheck clean. New dep `ignore` recorded in `tech-stack.yaml` under ADR-002.
+- **State:** Slice 2 (universe + coverage ledger) done and green. Awaiting human review +
+  PR merge. `summary.md` rewritten for this slice.
+- **Process note:** Slice 1 is still unmerged — both slices sit on `feat/selection-harness`.
+  A single PR of the branch would exceed the 5–7 file limit; split per slice (stacked PRs)
+  or merge Slice 1 first. Operator's call.
+- **Next:** After merge, `/clear`, then `implement selection-harness` for Slice 3
+  (dependency graph + fan-in, Tasks 8–9). Slice 3 adds `dependency-cruiser` to
+  `tech-stack.yaml` (ADR-001 D-04) in the same commit as `src/graph.ts`.
+- **Watch out for:** Clustering lives in `bucket.ts`, not a separate `cluster.ts` — the
+  design's Files-touched table scopes Slice 2 to `ignore.ts` + `bucket.ts`. `bucket()` takes
+  the classified set as a param (it does not call `select`), keeping the ledger decoupled from
+  the cascade. Known-category deliberately excludes `route.ts` so non-auth API routes stay in
+  the honest remainder.
 
 ### 2026-07-24 (Slice 1 complete)
 
