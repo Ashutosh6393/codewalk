@@ -9,6 +9,7 @@
     "harness": "bun run harness/run.ts"
   },
   "dependencies": {
+    "ignore": "^7.0.6",
     "zod": "^3.23.8"
   },
   "devDependencies": {

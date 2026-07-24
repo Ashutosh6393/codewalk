@@ -5,20 +5,27 @@ before any automated review has run. It must stand on its own.
 
 Read this, then the diff, then approve the PR.
 
-- **Slice:** 1 of 5 · **Branch:** `feat/selection-harness`
-- **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Tasks:** 1–4 · **Tests:** 11 added, all passing
-- **Size:** 7 non-test files, ~250 lines (limit: 5–7 files excl. tests, 500 lines)
+- **Slice:** 2 of 5 · **Branch:** `feat/selection-harness`
+- **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`, `docs/adr/002-ignore-for-gitignore-matching.md`
+- **Tasks:** 5–7 · **Tests:** 7 added (18 total), all passing
+- **Size:** 5 reviewable files (~289 lines) + 2 test files. Limit: 5–7 files excl. tests, 500 lines.
+
+> **Process note:** Slice 1 is not yet merged — Slices 1 and 2 both sit on
+> `feat/selection-harness`. A single PR of the whole branch would exceed the file limit.
+> Either merge Slice 1 first, or open stacked per-slice PRs. This is an operator decision;
+> the code is sliced cleanly regardless (Slice 2 touches no Slice 1 file).
 
 ---
 
 ## TL;DR
 
-The engine can now look at a Next.js repo's file list and pick out its auth files using the
-framework's conventions, then score that pick against a hand label. On a clean `next-auth`
-fixture it selects the right files and reports full recall. This is the walking skeleton —
-the thinnest end-to-end path (detect → select → measure) that proves the selection approach
-works before any of the harder tiers or real-repo cloning exist.
+The engine can now compute a repo's **kept universe** — the files that count, after dropping
+dependencies, build output, lockfiles, binaries and anything the repo's `.gitignore` excludes
+— and then **bucket** every kept file into `classified` / `known-category` / `genuine-unknown`,
+reporting a **coverage %**. The unclassified remainder is filtered to signal: a folder of
+several unknowns surfaces as a cluster, a widely-imported single surfaces on its own, and a
+lone low-fan-in util stays quiet. This is the D-20 "honesty by subtraction" denominator — what
+lets the harness say *"couldn't classify these"* instead of pretending it saw everything.
 
 ---
 
@@ -26,60 +33,55 @@ works before any of the harder tiers or real-repo cloning exist.
 
 | File | Change | Why |
 |---|---|---|
-| `packages/engine/package.json` | new | The reusable engine package (D-05). Deps: zod; scripts: test, check-types, harness |
-| `packages/engine/tsconfig.json` | new | Extends the shared `@codewalk/typescript-config/base.json` |
-| `packages/engine/src/types.ts` | new | Zod result schemas: Confidence, Tier, Framework, Provenance, SelectionResult (facts-only, D-18) |
-| `packages/engine/src/playbook/next.ts` | new | Next.js detection from the manifest + the auth convention globs (tier 1) |
-| `packages/engine/src/select.ts` | new | `select('auth')` — tier-1 selection; tiers 2/3 stubbed as an empty fallthrough |
-| `packages/engine/src/__fixtures__/next-auth-clean.ts` | new | Committed synthetic repo + hand label; the deterministic test substrate |
-| `packages/engine/harness/recall.ts` | new | `scoreRecall` — hits/misses/extras + precision/recall |
-| `CLAUDE.md`, `bun.lock` | generated | Workspace block regenerated; lockfile reconciled to the real filesystem (+zod, +@types/bun) |
+| `packages/engine/src/ignore.ts` | new | `keptUniverse(files, gitignore)` — always-ignore floor + repo `.gitignore`, one matcher |
+| `packages/engine/src/bucket.ts` | new | `bucket()` (coverage ledger) + `clusterRemainder()` (T-09 signal filter) |
+| `packages/engine/src/__fixtures__/mixed-tree.ts` | new | Committed synthetic tree spanning every ignore + bucket case |
+| `tech-stack.yaml` | modify | New `engine` section records `ignore` as the gitignore matcher (rule 4) |
+| `docs/adr/002-ignore-for-gitignore-matching.md` | new | Justifies the one new dependency |
+| `packages/engine/package.json`, `bun.lock` | dep/generated | `+ignore@7` |
 
 ### How it works now
 
-`select('auth', { files, manifest })` runs the cascade's first tier:
-
-1. `detectFramework(manifest)` reads the `next` dependency → `"next"` or `"unknown"`.
-2. On a Next.js repo it matches the playbook's auth globs (`middleware.ts`,
-   `app/api/auth/**/route.ts`, `next-auth` v5 config, …) against the file listing with
-   `Bun.Glob` — no dependency added.
-3. Matches become the anchors, tagged **tier 1 → high confidence**, with provenance recording
-   the tier, framework, and matched anchors.
-
-`scoreRecall(selected, labelled)` then diffs the pick against the hand label and reports
-recall/precision. The skeleton test wires the two together on the fixture and asserts recall = 1.
+1. **`keptUniverse(files, gitignore)`** builds one `ignore` matcher from the always-ignore
+   floor (`node_modules/`, `dist/`, `*.d.ts`, lockfiles, binaries by extension) plus the
+   repo's `.gitignore` text, and returns the surviving files in input order. Gitignore
+   semantics (depth-any, anchoring, dir-only, negation) come from the library, not hand-rolled.
+2. **`bucket(kept, classified)`** sorts each kept file: in the `classified` set → `classified`;
+   else matching a known-category glob (test / config / style / Next.js entrypoint) →
+   `known-category`; else → `unknown`. `coverage = (classified + known-category) / total kept`.
+   Only genuine-unknown source drags coverage down.
+3. **`clusterRemainder(unknown, { fanIn })`** groups the unknown remainder by folder and
+   surfaces only folders with ≥3 unknowns (clusters) or singles with fan-in ≥3 (high-fan-in).
 
 ---
 
 ## QA
 
 **What does this let a user do that they couldn't before?**
-Nothing user-facing — there is no product yet. For the operator, it's the first runnable piece
-of the engine's selection path and the measuring stick the whole ADR's Future work depends on.
+Nothing user-facing. For the operator: the harness now has an honest denominator — it can
+report what fraction of a repo it accounted for, and name the parts it couldn't, which is the
+D-20 guarantee the selection numbers will be read against.
 
 **What happens when it fails?**
-Pure functions with no IO or model calls in this slice. A malformed manifest fails closed to
-`framework: "unknown"` (lenient Zod parse) rather than throwing. `scoreRecall` treats empty
-label/selection sets as vacuous passes, so there's no divide-by-zero on a no-auth repo.
+Pure functions, no IO, no model. Empty inputs are handled: `keptUniverse([])` → `[]`;
+`bucket([], …)` → coverage 1 (vacuous). A missing `.gitignore` defaults to `""`, applying the
+floor only (spec edge case). No throwing paths.
 
 **Does this touch existing behaviour?**
-No. It's a brand-new isolated package. The only shared-file edits are generated: the `CLAUDE.md`
-workspace block and `bun.lock` (which was already stale vs. the filesystem — see Risks).
+No. Two new engine files plus one fixture; Slice 1's `select`/`recall`/playbook are untouched.
+`bucket()` takes the classified set as a parameter rather than calling `select`, so the ledger
+and the cascade stay decoupled.
 
-**Any data migration?**
-None. No database in this feature.
-
-**Any performance implications?**
-None meaningful. Glob matching over a bounded in-memory file list.
-
-**Any security or auth implications?**
-None. No network, no code execution, no secrets. Reads no files in this slice (inputs are
-in-memory). Honours the ADR's "never execute repository code" (D-13) trivially.
+**Any data migration / performance / security implications?**
+None. No DB, no network, no code execution, no secrets. All matching is over bounded in-memory
+file lists. `ignore` is a zero-runtime-dependency, types-shipping library that runs under Bun.
 
 **What did we deliberately not do?**
-Tiers 2 (keyword/symbol) and 3 (fan-in), the universe/coverage ledger, the dependency graph,
-and real-repo cloning — all later slices. `select`'s tier-2/3 branch is an intentional empty
-fallthrough (tier 3 / low) until Slice 4.
+The dependency graph and real fan-in (Slice 3) — `clusterRemainder` accepts a `fanIn` map but
+nothing computes one yet, so high-fan-in singles only fire once Slice 3 lands. Tiers 2/3 of the
+cascade and real-repo cloning remain later slices. Known-category deliberately **excludes**
+`route.ts`: a non-auth API route is a real subsystem file and must surface in the remainder,
+not be hidden.
 
 ---
 
@@ -91,10 +93,10 @@ bun install
 cd packages/engine && bun test && bun run check-types
 ```
 
-1. `bun test` → expect **11 pass**, 3 files.
-2. Read `harness/recall.test.ts` → the skeleton test selects on the fixture and asserts full recall.
-3. Break it on purpose: add a bogus glob or remove `middleware.ts` from the fixture's
-   `expectedAuthAnchors` → the recall/skeleton test fails cleanly (not a crash).
+1. `bun test` → expect **18 pass**, 5 files.
+2. Read `src/ignore.test.ts` and `src/bucket.test.ts` against `src/__fixtures__/mixed-tree.ts`.
+3. Break it on purpose: add `lib/db.ts` to the fixture's `.gitignore` → it drops from `kept`
+   and coverage shifts; or drop the `*.log` floor/gitignore entry → `app.log` leaks into `kept`.
 
 ---
 
@@ -102,18 +104,14 @@ cd packages/engine && bun test && bun run check-types
 
 | Test | Verifies | File |
 |---|---|---|
-| T-01 | Framework detection (next / devDep / unknown / empty) | `src/playbook/next.test.ts` |
-| T-02 | Tier-1 selects convention anchors, high confidence | `src/select.test.ts` |
-| T-03 | A route imported by nobody is still selected (playbook over fan-in) | `src/select.test.ts` |
-| T-16 | Provenance records tier, framework, anchors | `src/select.test.ts` |
-| T-04 | Recall diff (mixed / perfect / empty) + end-to-end skeleton | `harness/recall.test.ts` |
+| T-05 | Ignore-list + universe: floor + `.gitignore`; floor-only when no gitignore | `src/ignore.test.ts` |
+| T-06 | Bucketing — a selected file lands in `classified` | `src/bucket.test.ts` |
+| T-07 | Bucketing — test/config/style/entrypoint → `known-category`; unknown source stays unknown | `src/bucket.test.ts` |
+| T-08 | Coverage % = (classified + known-category) / total kept | `src/bucket.test.ts` |
+| T-09 | Remainder clustering: cluster surfaces, lone util hidden, high-fan-in single surfaces | `src/bucket.test.ts` |
 
-**Covered:** framework detection incl. the empty/unknown edge; tier-1 selection and its
-fan-in override; the recall math incl. empty-denominator edges; the full detect→select→score path.
-
-**Not covered (by design, later slices):** tiers 2/3, the universe/ignore-list, bucketing,
-the real dependency graph, cloning. The tier-2/3 empty fallthrough is exercised only
-indirectly here; it gets real tests in Slice 4.
+**Not covered (by design, later slices):** real fan-in values (Slice 3 feeds `clusterRemainder`);
+tiers 2/3; cloning. `clusterRemainder`'s high-fan-in path is tested with a hand-built map here.
 
 ### Test revisions in this slice
 
@@ -125,12 +123,12 @@ indirectly here; it gets real tests in Slice 4.
 
 | Risk | Likelihood | What to watch |
 |---|---|---|
-| Fixtures don't resemble real repos | med | The whole point of Slices 3–5; real-repo recall (Slice 5) is the true signal, not fixture greenness |
-| `bun.lock` churn looks alarming in the diff | low | It's the lockfile reconciling to the actual filesystem — the original referenced `@repo/*` template packages that don't exist on disk. Verify no *real* dependency was dropped |
-| `Bun.Glob` semantics differ from expectation | low | Covered by T-02 (matches `app/api/auth/[...nextauth]/route.ts` via `**`); watch if a new glob is added |
+| Known-category globs over/under-match on real repos | med | The `KNOWN_CATEGORY_GLOBS` list is a heuristic; the Slice 5 real-repo run is where over-broad matching (hiding a real subsystem) would show up as suspiciously high coverage |
+| Cluster thresholds (≥3 files, fan-in ≥3) are guesses | med | Defaults, tunable via opts; Slice 5 logging is meant to calibrate them off real data |
+| `ignore` matcher edge cases | low | Covered by T-05; the library owns the hard semantics |
 
-**Rollback:** revert commits `5ff36ed`, `4ccbbd7`, `e22fde1`, `54d93ac`. No migration, no
-shared runtime code — the package is self-contained, so a revert is clean.
+**Rollback:** revert commits `22345c0`, `bb8d124`, `5279892`. Self-contained new files; no
+shared runtime code touched, so the revert is clean (leaves Slice 1 intact).
 
 ---
 
@@ -138,16 +136,16 @@ shared runtime code — the package is self-contained, so a revert is clean.
 
 | Item | Why deferred | Worth doing? |
 |---|---|---|
-| tree-sitter symbol extraction | Feeds the LLM packet, not selection; harness uses keyword matching | yes (with the explanation call) |
+| Calibrate cluster/fan-in thresholds | Needs real-repo data from Slice 5 | yes (Slice 5) |
+| tree-sitter symbol extraction | Feeds the LLM packet, not selection | yes (with the explanation call) |
 | Cite-failure threshold (D-19) | Needs the LLM's citations; out of harness scope | yes (post-harness) |
-| LLM explanation call, report writer, chat, UI, DB, queue | Downstream of proven selection; explicitly out of ADR harness scope | yes (own ADRs/specs) |
-
-Anything marked **yes** that is non-trivial needs its own ADR before it becomes a spec.
+| LLM explanation call, report writer, chat, UI, DB, queue | Downstream of proven selection; out of ADR harness scope | yes (own ADRs/specs) |
 
 ---
 
 ## Documentation updated
 
-- [x] `CLAUDE.md` — workspace/repository-shape block regenerated (new `packages/engine`)
-- [x] `specs/001-selection-harness/implementation.md` — task states, slice state, session notes
-- [ ] No other documentation affected by this slice
+- [x] `tech-stack.yaml` — new `engine` section for the `ignore` dependency
+- [x] `docs/adr/002-ignore-for-gitignore-matching.md` — the dependency decision
+- [x] `specs/001-selection-harness/implementation.md` — task states, SHAs, slice state, session notes
+- [ ] No generated blocks affected (`bun run docs:check` clean)
