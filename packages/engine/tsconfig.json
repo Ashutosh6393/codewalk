@@ -1,0 +1,8 @@
+{
+  "extends": "@codewalk/typescript-config/base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "harness/**/*.ts"],
+  "exclude": ["node_modules"]
+}

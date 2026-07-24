@@ -1,0 +1,19 @@
+{
+  "name": "@codewalk/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "check-types": "tsc --noEmit",
+    "harness": "bun run harness/run.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@codewalk/typescript-config": "*",
+    "@types/bun": "^1.3.14",
+    "typescript": "5.9.2"
+  }
+}
