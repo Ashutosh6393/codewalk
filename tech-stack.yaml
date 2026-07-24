@@ -200,6 +200,18 @@ web:
       - Server data lives here and is never mirrored into Zustand.
 
 # ---------------------------------------------------------------------------
+# Engine (packages/engine) — the LLM-free selection path + validation harness
+# ---------------------------------------------------------------------------
+engine:
+  gitignore_matching:
+    when: Building the kept universe / coverage ledger from a repo tree.
+    tool: ignore
+    adr: docs/adr/002-ignore-for-gitignore-matching.md
+    rules:
+      - One matcher applies both the always-ignore floor and the repo's .gitignore.
+      - Correct .gitignore semantics (negation, anchoring, dir-only) — do not hand-roll.
+
+# ---------------------------------------------------------------------------
 # Not chosen yet — ask before picking
 # ---------------------------------------------------------------------------
 # Common needs with no default. If a project needs one, propose options to the user
