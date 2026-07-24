@@ -50,6 +50,7 @@ apps/
   server/
   web/
 packages/
+  engine/
   typescript-config/
 ```
 <!-- END GENERATED: workspaces -->

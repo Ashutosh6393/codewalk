@@ -5,10 +5,10 @@ reads this file first and picks up from it.
 
 Update it after every task. Never batch updates.
 
-- **Status:** not-started
+- **Status:** in-progress
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** none
+- **Current task:** 2 (Slice 1)
 
 ---
 
@@ -34,7 +34,7 @@ In dependency order. Each task must be independently testable and map to test ID
 
 | # | Task | Depends on | Tests | Slice | State | Attempts | Commit |
 |---|---|---|---|---|---|---|---|
-| 1 | Scaffold `packages/engine` (package.json, tsconfig, workspace wiring) + `types.ts` Zod schemas (Confidence, Provenance, SelectionResult) | — | — | 1 | `pending` | 0/3 | — |
+| 1 | Scaffold `packages/engine` (package.json, tsconfig, workspace wiring) + `types.ts` Zod schemas (Confidence, Provenance, SelectionResult) | — | — | 1 | `done` | 1/3 | (this commit) |
 | 2 | Next.js playbook: framework detection from manifest + convention auth anchor globs | 1 | T-01 | 1 | `pending` | 0/3 | — |
 | 3 | `select("auth")` tier-1 path: apply playbook anchors, emit provenance + high confidence | 2 | T-02, T-03, T-16 | 1 | `pending` | 0/3 | — |
 | 4 | `recall.ts`: precision/recall diff of selected vs labelled anchors + one next-auth fixture | 1 | T-04 | 1 | `pending` | 0/3 | — |
