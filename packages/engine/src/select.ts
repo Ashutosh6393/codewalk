@@ -1,16 +1,18 @@
 import { Glob } from "bun";
+import { matchAuthVocabulary } from "./dictionary/auth.js";
 import { detectFramework, nextAuthAnchorGlobs } from "./playbook/next.js";
 import { confidenceForTier, type SelectionResult } from "./types.js";
 
 /**
  * The selection cascade (ADR D-17). Given a repo's file listing and manifest, pick the
  * files that implement a subsystem, degrading through tiers and setting confidence from
- * the tier that fired.
- *
- * This slice implements tier 1 (playbook anchors) only — the walking skeleton. Tiers 2
- * (keyword/symbol dictionary) and 3 (fan-in) arrive in Slice 4; until then a repo the
- * playbook can't claim bottoms out with no anchors at the lowest confidence.
+ * the tier that fired: tier 1 (playbook anchors), tier 2 (keyword/symbol dictionary),
+ * tier 3 (fan-in fallback). A repo none of the tiers can claim bottoms out with no
+ * anchors at the lowest confidence.
  */
+
+/** Tier 3's cutoff: rank by fan-in, keep only the top 2 files. */
+const TIER_3_TOP_N = 2;
 
 export type Intent = "auth";
 
@@ -41,12 +43,35 @@ export function select(intent: Intent, repo: RepoInput): SelectionResult {
     }
   }
 
-  // Tiers 2 and 3 land in Slice 4. Empty fallthrough at the cascade's floor for now.
+  // Tier 2 — auth keyword dictionary. Fires when the playbook missed but we can still
+  // read file content to look for auth vocabulary.
+  if (intent === "auth" && repo.readFile) {
+    const matched = matchAuthVocabulary(repo.files, repo.readFile);
+    if (matched.length > 0) {
+      return {
+        anchors: matched,
+        confidence: confidenceForTier[2],
+        provenance: { tier: 2, framework, anchors: [] },
+      };
+    }
+  }
+
+  // Tier 3 — fan-in fallback. Floor of the cascade: no anchors when there's no fan-in
+  // data to rank, otherwise the top files by import count.
+  const topFanIn = repo.fanIn ? rankByFanIn(repo.fanIn, TIER_3_TOP_N) : [];
   return {
-    anchors: [],
+    anchors: topFanIn,
     confidence: confidenceForTier[3],
     provenance: { tier: 3, framework, anchors: [] },
   };
+}
+
+/** The top `n` files by fan-in count, descending. */
+function rankByFanIn(fanIn: ReadonlyMap<string, number>, n: number): string[] {
+  return [...fanIn.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, n)
+    .map(([file]) => file);
 }
 
 /** Files matching any of the glob patterns, preserving input order. */
