@@ -47,5 +47,11 @@ export const SelectionResult = z.object({
   anchors: z.array(z.string()),
   confidence: Confidence,
   provenance: Provenance,
+  /**
+   * Honest-absence flag (D-20). `false` means the cascade found no auth and invented
+   * nothing rather than reaching for a plausible-looking anchor. Derived mechanically
+   * from whether the cascade produced anchors — never hand-set per tier.
+   */
+  hasAuth: z.boolean(),
 });
 export type SelectionResult = z.infer<typeof SelectionResult>;
