@@ -8,8 +8,8 @@ Update it after every task. Never batch updates.
 - **Status:** in-review
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** Slice 5 in progress — Task 13 done, Task 14 next. Slice 4 awaiting review;
-  slices 1–3 merged (PRs #1, #2, #3)
+- **Current task:** Slice 5 — Tasks 13 and 14 done and green; open question at the gate on the
+  recall-hit fixture (see session notes). Slice 4 awaiting review; slices 1–3 merged (#1, #2, #3)
 
 ---
 
@@ -47,8 +47,8 @@ In dependency order. Each task must be independently testable and map to test ID
 | 10 | `dictionary/auth.ts`: auth keyword/symbol dictionary (tier 2) | 1 | T-13 | 4 | `done` | 1/3 | f4b0694 |
 | 11 | `select` tiers 2 & 3: wire dictionary + fan-in fallback; degrade in order; confidence per tier | 3, 9, 10 | T-12, T-14 | 4 | `done` | 1/3 | c2b8c26 + ecc8ba5 |
 | 12 | Honest "none found": no-auth repo → empty anchors, `has_auth=false`, files still in remainder | 11, 7 | T-15 | 4 | `done` | 2/3 | 8b903c6 |
-| 13 | `clone.ts`: `git clone --depth 1` at pinned SHA into an SHA-keyed cache dir | 1 | T-18 | 5 | `done` | 1/3 | (this commit) |
-| 14 | `labels.yaml` schema + `run.ts` loop: per-repo select → diff → log record; clone failure recorded & skipped | 12, 13, 4 | T-17 | 5 | `pending` | 0/3 | — |
+| 13 | `clone.ts`: `git clone --depth 1` at pinned SHA into an SHA-keyed cache dir | 1 | T-18 | 5 | `done` | 1/3 | dcc8dbb |
+| 14 | `labels.yaml` schema + `run.ts` loop: per-repo select → diff → log record; clone failure recorded & skipped | 12, 13, 4 | T-17 | 5 | `done` | 1/3 | (this commit) |
 
 ### Attempt budget
 

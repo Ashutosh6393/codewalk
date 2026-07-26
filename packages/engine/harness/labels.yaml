@@ -1,0 +1,24 @@
+# Ground truth for the selection harness (Slice 5). Placeholder — awaiting the
+# operator's 10 hand-labelled repos (see design.md "Ground-truth labelling of the 10
+# repos": a human input, not built by the spec). Do not fill this with fabricated
+# GitHub repos or SHAs; an invented ground truth is worse than an empty one.
+#
+# Field meanings (validated by `Labels` in run.ts):
+#   name     - short label for the repo, used in log records
+#   url      - clone URL
+#   sha      - exact 40-character hex commit SHA to check out (pinned, reproducible)
+#   category - the label category this repo represents (e.g. "next-auth", "no-auth")
+#   hasAuth  - whether the repo actually contains an auth subsystem
+#   anchors  - repo-relative paths a human identified as the real auth files
+#
+# repos:
+#   - name: example-next-auth-app
+#     url: https://github.com/example-org/example-next-auth-app
+#     sha: 0123456789abcdef0123456789abcdef01234567
+#     category: next-auth
+#     hasAuth: true
+#     anchors:
+#       - app/api/auth/[...nextauth]/route.ts
+#       - lib/auth.ts
+
+repos: []
