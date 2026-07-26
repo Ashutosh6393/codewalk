@@ -8,7 +8,7 @@ Update it after every task. Never batch updates.
 - **Status:** in-review
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** Slice 4 in progress — Tasks 10–11 done, Task 12 next. Slices 1–3 merged (PRs #1, #2, #3)
+- **Current task:** Slice 4 complete — awaiting human review + PR. Slices 1–3 merged (PRs #1, #2, #3)
 
 ---
 
@@ -43,9 +43,9 @@ In dependency order. Each task must be independently testable and map to test ID
 | 7 | Remainder clustering: surface only ≥N-file clusters or high-fan-in singles | 6 | T-09 | 2 | `done` | 1/3 | 5279892 |
 | 8 | `graph.ts`: dependency-cruiser adapter — import graph + alias resolution; add dep to `tech-stack.yaml` | 1 | T-10 | 3 | `done` | 1/3 | c030852 |
 | 9 | Fan-in computation from the graph | 8 | T-11 | 3 | `done` | 1/3 | 0e2ad0b |
-| 10 | `dictionary/auth.ts`: auth keyword/symbol dictionary (tier 2) | 1 | T-13 | 4 | `done` | 1/3 | (this commit) |
-| 11 | `select` tiers 2 & 3: wire dictionary + fan-in fallback; degrade in order; confidence per tier | 3, 9, 10 | T-12, T-14 | 4 | `done` | 1/3 | (this commit) |
-| 12 | Honest "none found": no-auth repo → empty anchors, `has_auth=false`, files still in remainder | 11, 7 | T-15 | 4 | `green` | 2/3 | — |
+| 10 | `dictionary/auth.ts`: auth keyword/symbol dictionary (tier 2) | 1 | T-13 | 4 | `done` | 1/3 | f4b0694 |
+| 11 | `select` tiers 2 & 3: wire dictionary + fan-in fallback; degrade in order; confidence per tier | 3, 9, 10 | T-12, T-14 | 4 | `done` | 1/3 | c2b8c26 + ecc8ba5 |
+| 12 | Honest "none found": no-auth repo → empty anchors, `has_auth=false`, files still in remainder | 11, 7 | T-15 | 4 | `done` | 2/3 | 8b903c6 |
 | 13 | `clone.ts`: `git clone --depth 1` at pinned SHA into an SHA-keyed cache dir | 1 | T-18 | 5 | `pending` | 0/3 | — |
 | 14 | `labels.yaml` schema + `run.ts` loop: per-repo select → diff → log record; clone failure recorded & skipped | 12, 13, 4 | T-17 | 5 | `pending` | 0/3 | — |
 
@@ -75,7 +75,7 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 | 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | 8 | `merged` | #1 |
 | 2 | Tasks 5–7 — universe + coverage ledger | 5 | `merged` | #2 |
 | 3 | Tasks 8–9 — dependency graph + fan-in | 2 | `merged` | #3 |
-| 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | ~2 | `pending` | — |
+| 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | 3 | `in-review` | — |
 | 5 | Tasks 13–14 — measurement over the labelled set | ~3 | `pending` | — |
 
 ---
@@ -83,86 +83,6 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 ## Blocked
 
 _Nothing blocked._
-
-**Conflict 1 — `identity`/`permission` break the pre-existing `no-vocabulary` fixture.**
-The task says "Add `identity` and `permission` to `AUTH_TERMS`" and the regression note
-claims `no-vocabulary`'s two files "hit exactly one term each via their paths." That's true
-for `lib/identity-gateway.ts` and `lib/permission-check.ts` themselves, but
-`no-vocabulary.ts` (committed before this task, in `ecc8ba5`) has four *other* files
-(`app/dashboard.ts`, `app/settings.ts`, `app/profile.ts`) whose content imports **both**
-modules, e.g.:
-```
-import { verifyIdentity } from "../lib/identity-gateway";
-import { checkPermission } from "../lib/permission-check";
-```
-`\bidentity\b` and `\bpermission\b` match inside those import specifiers (`/` and `-` are
-non-word characters, exactly as instructed) — so each of those three files racks up 2
-distinct terms from content alone and clears `matchAuthVocabulary`'s `MIN_DISTINCT_TERMS`
-bar. Confirmed directly:
-```
-matchAuthVocabulary(noVocabulary.files, readFile)
-  → ["lib/permission-check.ts", "app/dashboard.ts", "app/settings.ts", "app/profile.ts"]
-```
-Tier 2 fires instead of tier 3, and even where a single file (`lib/permission-check.ts`)
-could be excluded by requiring both terms from the *same* source (path vs. content), the
-other three files still trip via content alone — there's no per-file heuristic inside
-`matchAuthVocabulary` that admits `identity-gateway.ts`/`permission-check.ts` as the only
-tier-3 candidates while excluding their importers, without either stripping import
-specifiers from the content scan (parsing, explicitly out of scope for this
-keyword-only dictionary) or not adding `identity`/`permission` as generic terms.
-
-**Conflict 2 — the tier-3 gate trips on `no-auth`'s own `package.json`.** The `no-auth`
-fixture's `package.json` is `{"name":"no-auth",...}`. `\bauth\b` (a term that predates this
-task) matches inside `"no-auth"` — `-` and `"` are non-word characters — so
-`hasAuthSignal(noAuth.files, readFile)` returns `true` for `package.json` alone, the tier-3
-gate opens, and fan-in supplies `lib/db.ts`/`lib/analytics.ts` as anchors instead of the
-expected `[]`. This is independent of Conflict 1: it doesn't involve `identity`/
-`permission` at all, and it doesn't involve the new path-matching feature — it's the new
-`hasAuthSignal` gate (threshold ≥1) scanning `package.json`'s own `name` field, which
-happens to be the fixture's own filename choice.
-
-**Is the test correct?** `specs/001-selection-harness/CLAUDE.md` (D-20): "A no-auth repo
-returns empty anchors with `has_auth=false`; it never invents an anchor." The *intent*
-behind both `select.no-auth.test.ts` and `no-vocabulary`'s existing assertions is exactly
-right and I'm not questioning the intent. But the fixtures' own content contradicts the
-regression note's factual claim ("zero terms... not even one incidental hit" / "hit
-exactly one term each via their paths") — that claim is false for the actual fixture
-content as it exists on disk. Implementing the three files exactly as instructed (path
-matching, the two new terms, the ≥1 tier-3 gate) cannot satisfy all four fixtures
-simultaneously; something in the task/fixtures needs to change:
-- either `no-vocabulary.ts`'s importer files need updating (or the new terms need to not be
-  generic path+content terms), or
-- `hasAuthSignal`/`matchAuthVocabulary` need to exclude manifest files (e.g. `package.json`,
-  which `bucket.ts`'s `KNOWN_CATEGORY_GLOBS` already treats as non-subsystem config) from
-  the scan — a change not in the task's three-file, three-change scope as written.
-
-Escalating rather than hand-tuning the matcher to thread this needle, per
-`.claude/rules/testing.md`: "if a rule is relevant, read it" / "is the test correct?"
-governs before further attempts distort the implementation to fit fixtures that conflict
-with each other.
-
-**Command output — `bun test` (from repo root), engine package:**
-```
-packages\engine\src\select.cascade.test.ts:
-(fail) select('auth') — tier 3 fan-in fallback (T-12) > T-12: no playbook match and no
-  dictionary hit falls back to the top-fan-in files at low confidence
-  Expected: ["lib/identity-gateway.ts","lib/permission-check.ts"]
-  Received: ["lib/permission-check.ts","app/dashboard.ts","app/settings.ts","app/profile.ts"]
-
-(fail) select('auth') — cascade degrades in tier order (T-14) > T-14: a repo with no
-  playbook and no vocabulary hit skips to tier 3 at low confidence
-  Expected tier: 3, Received tier: 2
-
-packages\engine\src\select.no-auth.test.ts:
-(fail) select('auth') — honest 'none found' (T-15) > a repo with no auth signal at all
-  returns empty anchors and hasAuth=false, even with tempting fan-in data
-  Expected anchors: []
-  Received anchors: ["lib/db.ts","lib/analytics.ts"]
-
-24 pass, 3 fail, 60 expect() calls. Ran 27 tests across 9 files.
-```
-
-`bunx turbo run check-types`: clean (0 errors, engine package cache miss, 1 successful task).
 
 ---
 
@@ -180,6 +100,40 @@ A revision on a task that was failing gets extra scrutiny from the human reviewe
 ## Session notes
 
 Newest first. Keep entries short — this is a handoff, not a diary.
+
+### 2026-07-26 (Slice 4 complete)
+
+- **Done:** Tasks 10–12. Auth keyword dictionary (f4b0694), cascade tiers 2/3 wired into
+  `select` (c2b8c26 + ecc8ba5), honest "none found" (8b903c6). 27 tests pass (+7),
+  typecheck clean, `docs:check` in sync. No test revisions.
+- **Design correction mid-slice (Task 12, attempt 1 → 2).** Tier 3 as merged in Slice 3
+  ranked the *whole repo* by fan-in, so any repo with imports got anchors — a no-auth repo
+  would have been handed `lib/db.ts` as an "auth anchor", the invented anchor ADR-001 D-20
+  forbids. Two fixes landed together:
+  - **Import lines are stripped before term-counting.** An import specifier names *another*
+    module, so it is that module's signal. Without this every consumer of an auth module
+    scores auth terms it doesn't contain — it was making three `no-vocabulary` files trip
+    tier 2.
+  - **Tier 3 ranks only `authCandidates`** (files with ≥1 auth term), dropping zero-fan-in
+    entries. Fan-in is a ranker among plausible files, never evidence on its own. A
+    repo-level "does this repo mention auth" gate was tried first and cannot work: the
+    `no-auth` fixture's own `package.json` contains `"name": "no-auth"`, which matches
+    `\bauth\b`.
+- **`types.ts` widened by one field** (`hasAuth`) beyond the slice's stated blast radius —
+  approved by the operator at the slice gate. T-15 requires the engine to *state* honest
+  absence rather than have each consumer re-derive it.
+- **Watch out for:** `hasAuth` is `anchors.length > 0` in effect, but tiers 1/2 write the
+  literal `true` inside an `if (matched.length > 0)` guard. The invariant holds structurally;
+  the `types.ts` comment saying it is "never hand-set per tier" is looser than the code.
+- **History note:** Task 11's source and its tests are in two commits (c2b8c26 by the coder
+  agent, ecc8ba5 with the tests) rather than one atomic commit, and both c2b8c26 and
+  8b903c6 are missing the `Co-Authored-By`/`Claude-Session` trailers.
+  `feat/selection-harness` is shared with three merged PRs, so this was not rebased to
+  tidy. Note also that the local `main` ref is stale at 2595f4d — `origin/main` (dd50390)
+  is the real merge base for this slice.
+- **Next:** After merge, `/clear`, then `implement selection-harness` for Slice 5
+  (`clone.ts`, `labels.yaml`, `run.ts`, Tasks 13–14) — the first slice that touches the
+  network and the first to need real ground-truth labels from the operator.
 
 ### 2026-07-26 (Slice 3 complete)
 
