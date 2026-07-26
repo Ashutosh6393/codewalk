@@ -8,7 +8,7 @@ Update it after every task. Never batch updates.
 - **Status:** in-review
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** Slice 2 complete — awaiting human review + PR merge (Slice 1 also still unmerged)
+- **Current task:** Slice 3 complete — awaiting human review + PR merge (Slices 1–2 also still unmerged)
 
 ---
 
@@ -41,8 +41,8 @@ In dependency order. Each task must be independently testable and map to test ID
 | 5 | `ignore.ts`: ignore-list (always-ignore floor + `.gitignore`) → kept universe | 1 | T-05 | 2 | `done` | 1/3 | 22345c0 |
 | 6 | `bucket.ts`: bucket kept files (classified / known-category / genuine-unknown) + coverage % | 5, 3 | T-06, T-07, T-08 | 2 | `done` | 1/3 | bb8d124 |
 | 7 | Remainder clustering: surface only ≥N-file clusters or high-fan-in singles | 6 | T-09 | 2 | `done` | 1/3 | 5279892 |
-| 8 | `graph.ts`: dependency-cruiser adapter — import graph + alias resolution; add dep to `tech-stack.yaml` | 1 | T-10 | 3 | `green` | 1/3 | — |
-| 9 | Fan-in computation from the graph | 8 | T-11 | 3 | `pending` | 0/3 | — |
+| 8 | `graph.ts`: dependency-cruiser adapter — import graph + alias resolution; add dep to `tech-stack.yaml` | 1 | T-10 | 3 | `done` | 1/3 | c030852 |
+| 9 | Fan-in computation from the graph | 8 | T-11 | 3 | `done` | 1/3 | 0e2ad0b |
 | 10 | `dictionary/auth.ts`: auth keyword/symbol dictionary (tier 2) | 1 | T-13 | 4 | `pending` | 0/3 | — |
 | 11 | `select` tiers 2 & 3: wire dictionary + fan-in fallback; degrade in order; confidence per tier | 3, 9, 10 | T-12, T-14 | 4 | `pending` | 0/3 | — |
 | 12 | Honest "none found": no-auth repo → empty anchors, `has_auth=false`, files still in remainder | 11, 7 | T-15 | 4 | `pending` | 0/3 | — |
@@ -74,7 +74,7 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 |---|---|---|---|---|
 | 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | 8 | `in-review` | — |
 | 2 | Tasks 5–7 — universe + coverage ledger | 5 | `in-review` | — |
-| 3 | Tasks 8–9 — dependency graph + fan-in | ~2 | `pending` | — |
+| 3 | Tasks 8–9 — dependency graph + fan-in | 2 | `in-review` | — |
 | 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | ~2 | `pending` | — |
 | 5 | Tasks 13–14 — measurement over the labelled set | ~3 | `pending` | — |
 
@@ -102,6 +102,22 @@ A revision on a task that was failing gets extra scrutiny from the human reviewe
 ## Session notes
 
 Newest first. Keep entries short — this is a handoff, not a diary.
+
+### 2026-07-26 (Slice 3 complete)
+
+- **Done:** Tasks 8–9. `graph.ts` dependency-cruiser adapter resolving `@/*` tsconfig
+  aliases (c030852), `fanIn` counting distinct importers per target (0e2ad0b). 20 tests
+  pass (+2), typecheck clean. `dependency-cruiser` recorded in `tech-stack.yaml` under
+  ADR-001 D-04 (landed with Task 8's commit).
+- **State:** Slice 3 (dependency graph + fan-in) done and green. Awaiting human review +
+  PR merge.
+- **Observation for Slice 4:** the T-11 fixture has each of the 3 importers reach
+  `lib/db.ts` exactly once, so `fanIn`'s importer-dedupe (`Set` per target, guarding
+  against a file that imports the same target twice — e.g. a type-only import beside a
+  value import) is implemented but not exercised by any test. Behaviour is correct by
+  inspection; flagging so Slice 4 doesn't assume it's covered.
+- **Next:** After merge, `/clear`, then `implement selection-harness` for Slice 4
+  (dictionary + tiers 2/3 cascade, Tasks 10–12) — first real consumer of `fanIn`.
 
 ### 2026-07-25 (Slice 2 complete)
 
