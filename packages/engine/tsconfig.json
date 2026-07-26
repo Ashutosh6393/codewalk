@@ -4,5 +4,8 @@
     "noEmit": true
   },
   "include": ["src/**/*.ts", "harness/**/*.ts"],
-  "exclude": ["node_modules"]
+  // `__fixtures__/alias-repo` is a synthetic repo tree read off disk by the graph
+  // adapter, not source of this package. It carries its own tsconfig (that is the
+  // point — it exercises alias resolution) and must not be compiled under ours.
+  "exclude": ["node_modules", "src/__fixtures__/alias-repo"]
 }

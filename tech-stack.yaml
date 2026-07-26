@@ -211,6 +211,16 @@ engine:
       - One matcher applies both the always-ignore floor and the repo's .gitignore.
       - Correct .gitignore semantics (negation, anchoring, dir-only) — do not hand-roll.
 
+  dependency_graph:
+    when: Building the import graph / fan-in counts for tier-3 selection.
+    tool: dependency-cruiser
+    adr: docs/adr/001-Initial-Architecture.md (D-04 — "buy module resolution")
+    rules:
+      - One adapter (src/graph.ts) wraps the programmatic `cruise` API. Do not hand-roll
+        import parsing or tsconfig alias resolution.
+      - Pass the parsed tsconfig as transpileOptions (4th cruise argument), not only
+        cruiseOptions.tsConfig.fileName — otherwise alias resolution silently no-ops.
+
 # ---------------------------------------------------------------------------
 # Not chosen yet — ask before picking
 # ---------------------------------------------------------------------------
