@@ -1,5 +1,5 @@
 import { Glob } from "bun";
-import { matchAuthVocabulary } from "./dictionary/auth.js";
+import { authCandidates, matchAuthVocabulary } from "./dictionary/auth.js";
 import { detectFramework, nextAuthAnchorGlobs } from "./playbook/next.js";
 import { confidenceForTier, type SelectionResult } from "./types.js";
 
@@ -21,9 +21,9 @@ export interface RepoInput {
   files: string[];
   /** Parsed package.json, or undefined when there is none. */
   manifest?: unknown;
-  /** Reads a file's contents. Used by the tier-2 dictionary (Slice 4). */
+  /** Reads a file's contents. Used by the tier-2 dictionary and the tier-3 auth gate. */
   readFile?: (path: string) => string;
-  /** Fan-in per file. Used by the tier-3 fallback (Slice 4). */
+  /** Fan-in per file. Used by the tier-3 fallback. */
   fanIn?: ReadonlyMap<string, number>;
 }
 
@@ -39,6 +39,7 @@ export function select(intent: Intent, repo: RepoInput): SelectionResult {
         anchors: matched,
         confidence: confidenceForTier[1],
         provenance: { tier: 1, framework, anchors: matched },
+        hasAuth: true,
       };
     }
   }
@@ -52,23 +53,40 @@ export function select(intent: Intent, repo: RepoInput): SelectionResult {
         anchors: matched,
         confidence: confidenceForTier[2],
         provenance: { tier: 2, framework, anchors: [] },
+        hasAuth: true,
       };
     }
   }
 
-  // Tier 3 — fan-in fallback. Floor of the cascade: no anchors when there's no fan-in
-  // data to rank, otherwise the top files by import count.
-  const topFanIn = repo.fanIn ? rankByFanIn(repo.fanIn, TIER_3_TOP_N) : [];
+  // Tier 3 — fan-in fallback. Floor of the cascade. Fan-in alone is not evidence that
+  // auth exists (D-20): every repo has import structure, so ranking the whole repo by
+  // fan-in would invent an anchor out of nothing. Fan-in is a ranker among plausible
+  // candidates, never evidence on its own — rank only the files that already carry some
+  // auth vocabulary, drop any with zero fan-in, and keep the top N. That's what makes
+  // `no-auth` come back empty: its `package.json` has a term but no fan-in, and its
+  // high-fan-in files have no term, so neither qualifies and the cascade honestly reports
+  // nothing.
+  const topFanIn =
+    repo.fanIn && repo.readFile
+      ? rankByFanIn(authCandidates(repo.files, repo.readFile), repo.fanIn, TIER_3_TOP_N)
+      : [];
   return {
     anchors: topFanIn,
     confidence: confidenceForTier[3],
     provenance: { tier: 3, framework, anchors: [] },
+    hasAuth: topFanIn.length > 0,
   };
 }
 
-/** The top `n` files by fan-in count, descending. */
-function rankByFanIn(fanIn: ReadonlyMap<string, number>, n: number): string[] {
-  return [...fanIn.entries()]
+/** The top `n` candidates by fan-in count, descending, excluding zero fan-in. */
+function rankByFanIn(
+  candidates: string[],
+  fanIn: ReadonlyMap<string, number>,
+  n: number,
+): string[] {
+  return candidates
+    .map((file) => [file, fanIn.get(file) ?? 0] as const)
+    .filter(([, count]) => count > 0)
     .sort(([, a], [, b]) => b - a)
     .slice(0, n)
     .map(([file]) => file);
