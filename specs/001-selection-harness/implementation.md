@@ -8,7 +8,7 @@ Update it after every task. Never batch updates.
 - **Status:** in-review
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** Slice 3 complete — awaiting human review + PR merge (Slices 1–2 also still unmerged)
+- **Current task:** Slice 3 complete — awaiting human review + PR merge. Slices 1–2 merged (PRs #1, #2)
 
 ---
 
@@ -72,9 +72,9 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 
 | Slice | Contains | Files | State | PR |
 |---|---|---|---|---|
-| 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | 8 | `in-review` | — |
-| 2 | Tasks 5–7 — universe + coverage ledger | 5 | `in-review` | — |
-| 3 | Tasks 8–9 — dependency graph + fan-in | 2 | `in-review` | — |
+| 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | 8 | `merged` | #1 |
+| 2 | Tasks 5–7 — universe + coverage ledger | 5 | `merged` | #2 |
+| 3 | Tasks 8–9 — dependency graph + fan-in | 2 | `in-review` | #3 |
 | 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | ~2 | `pending` | — |
 | 5 | Tasks 13–14 — measurement over the labelled set | ~3 | `pending` | — |
 
@@ -129,6 +129,8 @@ Newest first. Keep entries short — this is a handoff, not a diary.
 - **Process note:** Slice 1 is still unmerged — both slices sit on `feat/selection-harness`.
   A single PR of the branch would exceed the 5–7 file limit; split per slice (stacked PRs)
   or merge Slice 1 first. Operator's call.
+  _(Resolved 2026-07-26: both landed as separate PRs from this same branch — #1, then #2.
+  One PR per slice off `feat/selection-harness` is the established pattern; no stacking needed.)_
 - **Next:** After merge, `/clear`, then `implement selection-harness` for Slice 3
   (dependency graph + fan-in, Tasks 8–9). Slice 3 adds `dependency-cruiser` to
   `tech-stack.yaml` (ADR-001 D-04) in the same commit as `src/graph.ts`.

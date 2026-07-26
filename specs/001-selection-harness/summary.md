@@ -11,10 +11,10 @@ Read this, then the diff, then approve the PR.
 - **Size:** 2 reviewable files (`graph.ts`, `tsconfig.json` tweak) + `tech-stack.yaml` +
   1 test file + 1 on-disk fixture repo. Limit: 5–7 files excl. tests, 500 lines.
 
-> **Process note:** Slices 1 and 2 are still unmerged — Slices 1, 2 and 3 all sit on
-> `feat/selection-harness`. A single PR of the whole branch would exceed the file limit.
-> Either merge Slices 1–2 first, or open stacked per-slice PRs. This is an operator decision;
-> the code is sliced cleanly regardless (Slice 3 touches no Slice 1/2 file).
+> **Process note:** Slices 1 and 2 are merged (PRs #1 and #2, both from
+> `feat/selection-harness`). This PR is Slice 3 alone, straight into `main` — no stack.
+> Earlier session notes claiming Slices 1–2 were awaiting merge were written before those
+> PRs landed and are stale; corrected here.
 
 ---
 
