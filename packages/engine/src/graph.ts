@@ -58,3 +58,34 @@ export async function buildGraph(root: string): Promise<DependencyGraph> {
 
   return { edges };
 }
+
+/**
+ * Fan-in: how many distinct files import a given file. Exists as the tier-3 fallback
+ * ranker (ADR-001 D-17) and to rescue high-fan-in singles out of the remainder cluster
+ * (D-20) — on a known framework, playbook anchors override fan-in; fan-in only ranks
+ * what the playbook doesn't already place.
+ *
+ * A file with zero importers is absent from the map, not present with 0 — callers
+ * (`clusterRemainder` in bucket.ts) already default via `?? 0`.
+ */
+export function fanIn(graph: DependencyGraph): ReadonlyMap<string, number> {
+  const importersByTarget = new Map<string, Set<string>>();
+
+  for (const edge of graph.edges) {
+    // dependency-cruiser can report the same import target twice for one file (e.g. a
+    // type-only import alongside a value import) — dedupe by importer, not by edge, or
+    // fan-in would double-count a single importer.
+    let importers = importersByTarget.get(edge.to);
+    if (!importers) {
+      importers = new Set();
+      importersByTarget.set(edge.to, importers);
+    }
+    importers.add(edge.from);
+  }
+
+  const counts = new Map<string, number>();
+  for (const [target, importers] of importersByTarget) {
+    counts.set(target, importers.size);
+  }
+  return counts;
+}
