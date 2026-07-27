@@ -8,8 +8,8 @@ Update it after every task. Never batch updates.
 - **Status:** in-review
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** Slice 5 — Tasks 13 and 14 done and green; open question at the gate on the
-  recall-hit fixture (see session notes). Slice 4 awaiting review; slices 1–3 merged (#1, #2, #3)
+- **Current task:** All 14 tasks `done`. Slice 5 awaiting review; slices 1–4 merged (#1–#4).
+  Code-complete after this merges — what remains is operator input, not code.
 
 ---
 
@@ -76,7 +76,7 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 | 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | 8 | `merged` | #1 |
 | 2 | Tasks 5–7 — universe + coverage ledger | 5 | `merged` | #2 |
 | 3 | Tasks 8–9 — dependency graph + fan-in | 2 | `merged` | #3 |
-| 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | 3 | `in-review` | — |
+| 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | 3 | `merged` | #4 |
 | 5 | Tasks 13–14 — measurement over the labelled set | 10 | `in-review` | — |
 
 ---
@@ -130,9 +130,9 @@ Newest first. Keep entries short — this is a handoff, not a diary.
 - **`@codewalk/engine` has no `lint` task**, so no linter has ever run over this package.
   Repo-root `bun run lint` also fails on pre-existing CRLF in `apps/web`. Both recorded as
   deferred, neither touched here.
-- **Next:** all 14 tasks are `done`. Slices 4 and 5 are both unmerged on this branch — review
-  and merge slice 4 first, then this one. After that the spec is code-complete and the next
-  move is not code: supply `labels.yaml` and run the measurement.
+- **Next:** all 14 tasks are `done`. Slice 4 merged as PR #4; slice 5 is the final PR. After
+  it merges the spec is code-complete and the next move is not code: supply `labels.yaml`
+  and run the measurement.
 
 ### 2026-07-26 (Slice 4 complete)
 

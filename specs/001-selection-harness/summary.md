@@ -17,12 +17,12 @@ Read this, then the diff, then approve the PR.
   whether a five-file synthetic fixture tree counts as "one file" for the limit's intent;
   flagging rather than deciding it silently.
 
-> **Process note:** Slice 4 (Tasks 10–12, PR not yet raised) and Slice 5 (this one, Tasks
-> 13–14) both sit on `feat/selection-harness`, unmerged, on top of each other. Slices 1–3 are
-> merged (#1, #2, #3). This summary and diff cover **Slice 5 only** — Task 13 (`dcc8dbb`),
-> Task 14 (`a20981d`), and a follow-up test commit (`8053b7c`) — measured against `aff02df`
-> (Slice 4's tip), not against `main`. If Slice 4 hasn't been reviewed and merged first, the
-> human is approving two unmerged slices' worth of behaviour change on one branch.
+> **Process note:** Slices 1–4 are merged (PRs #1–#4), all from `feat/selection-harness` —
+> one PR per slice off the same branch is this spec's established pattern. This is the fifth
+> and final PR: Task 13 (`dcc8dbb`), Task 14 (`a20981d`), a follow-up test commit
+> (`8053b7c`), and this summary (`aff0458`). PR #4 merged as a real merge commit, so
+> `aff02df` is both the merge base and Slice 4's tip — the diff below is Slice 5 alone, with
+> nothing from an earlier slice bleeding in.
 
 ---
 
