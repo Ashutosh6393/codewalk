@@ -101,8 +101,8 @@ separately; the real labelled repos drive the measurement *run*, not the unit te
 
 `packages/engine` is a shared workspace package (per tech-stack `packages/*` rule and D-05's
 "reusable engine" boundary). The harness runner lives **in-package** as a Bun script
-(`bun run --filter engine harness`) because it *is* the engine's selection path pointed at
-real repos — not a separate product app.
+(`bun run --filter '@codewalk/engine' harness`) because it *is* the engine's selection path
+pointed at real repos — not a separate product app.
 
 ```
 packages/engine/
@@ -258,7 +258,7 @@ Each slice is independently demonstrable and independently mergeable.
 ### Slice 5 — Measurement over the labelled set + threshold logging
 
 - **Blast radius:** `harness/labels.yaml`, `harness/clone.ts`, `harness/run.ts`.
-- **Acceptance:** `bun run --filter engine harness` clones each labelled repo at its SHA,
+- **Acceptance:** `bun run --filter '@codewalk/engine' harness` clones each labelled repo at its SHA,
   runs selection, and emits one log record per repo (tier fired, files selected, hit/miss,
   confidence, coverage %); anchor recall is computed across the set. A clone failure is
   recorded and skipped, not fatal.

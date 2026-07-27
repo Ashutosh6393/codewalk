@@ -8,7 +8,8 @@ Update it after every task. Never batch updates.
 - **Status:** in-review
 - **Branch:** `feat/selection-harness`
 - **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md`
-- **Current task:** Slice 4 complete — awaiting human review + PR. Slices 1–3 merged (PRs #1, #2, #3)
+- **Current task:** All 14 tasks `done`. Slice 5 awaiting review; slices 1–4 merged (#1–#4).
+  Code-complete after this merges — what remains is operator input, not code.
 
 ---
 
@@ -46,8 +47,8 @@ In dependency order. Each task must be independently testable and map to test ID
 | 10 | `dictionary/auth.ts`: auth keyword/symbol dictionary (tier 2) | 1 | T-13 | 4 | `done` | 1/3 | f4b0694 |
 | 11 | `select` tiers 2 & 3: wire dictionary + fan-in fallback; degrade in order; confidence per tier | 3, 9, 10 | T-12, T-14 | 4 | `done` | 1/3 | c2b8c26 + ecc8ba5 |
 | 12 | Honest "none found": no-auth repo → empty anchors, `has_auth=false`, files still in remainder | 11, 7 | T-15 | 4 | `done` | 2/3 | 8b903c6 |
-| 13 | `clone.ts`: `git clone --depth 1` at pinned SHA into an SHA-keyed cache dir | 1 | T-18 | 5 | `pending` | 0/3 | — |
-| 14 | `labels.yaml` schema + `run.ts` loop: per-repo select → diff → log record; clone failure recorded & skipped | 12, 13, 4 | T-17 | 5 | `pending` | 0/3 | — |
+| 13 | `clone.ts`: `git clone --depth 1` at pinned SHA into an SHA-keyed cache dir | 1 | T-18 | 5 | `done` | 1/3 | dcc8dbb |
+| 14 | `labels.yaml` schema + `run.ts` loop: per-repo select → diff → log record; clone failure recorded & skipped | 12, 13, 4 | T-17 | 5 | `done` | 1/3 | (this commit) |
 
 ### Attempt budget
 
@@ -75,8 +76,8 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 | 1 | Tasks 1–4 — walking skeleton: tier-1 recall on one repo | 8 | `merged` | #1 |
 | 2 | Tasks 5–7 — universe + coverage ledger | 5 | `merged` | #2 |
 | 3 | Tasks 8–9 — dependency graph + fan-in | 2 | `merged` | #3 |
-| 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | 3 | `in-review` | — |
-| 5 | Tasks 13–14 — measurement over the labelled set | ~3 | `pending` | — |
+| 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | 3 | `merged` | #4 |
+| 5 | Tasks 13–14 — measurement over the labelled set | 10 | `in-review` | — |
 
 ---
 
@@ -100,6 +101,38 @@ A revision on a task that was failing gets extra scrutiny from the human reviewe
 ## Session notes
 
 Newest first. Keep entries short — this is a handoff, not a diary.
+
+### 2026-07-27 (Slice 5 complete)
+
+- **Done:** Tasks 13–14. `cloneAtSha` (dcc8dbb), `runLabels` + `labels.yaml` (a20981d), plus
+  an auth-bearing fixture so T-17 proves a real hit (8053b7c). 36 tests pass (+9),
+  typecheck clean, `docs:check` in sync. No test revisions.
+- **The harness has measured nothing.** `labels.yaml` ships `repos: []` — the 10 hand-labelled
+  repos are the operator's input per the spec's resolved open question, confirmed at this
+  gate. `bun run --filter '@codewalk/engine' harness` prints `{"aggregateRecall":1}`, a
+  vacuous pass over zero repos. The apparatus works; the number does not exist yet.
+- **Blast radius widened by agreement.** T-17 originally ran only against `alias-repo`, whose
+  cascade honestly bottoms out at tier 3 with no anchors — so every labelled file was a miss
+  and the assertions held identically whether `scoreRecall`'s hits/misses were wired right or
+  swapped. Operator approved adding `src/__fixtures__/next-auth-app/` (tier 1 fires, one hit,
+  one miss, recall 0.5) plus one `tsconfig.json` exclude entry, matching the existing
+  `alias-repo` precedent.
+- **Watch out for:** the same mutation check on `run.ts`'s `selected: result.anchors` →
+  `result.provenance.anchors` leaves the suite **green**, because tier 1 assigns the same
+  array to both fields in `select.ts` and tier 3 hardcodes `provenance.anchors: []`. Only a
+  tier-2/3 fixture with non-empty top-level anchors would catch that rewiring. Recorded in
+  `summary.md` → Deferred work.
+- **`cloneAtSha` has never hit a real remote.** T-18 runs against a local temp repo (which
+  the design allows). `fetch --depth 1 origin <sha>` needs the server to permit
+  fetch-by-SHA; GitHub does, but it is unproven here until real labels arrive.
+- **Doc fix:** `design.md` documented the runner as `bun run --filter engine harness`, which
+  matches no workspace — the package is `@codewalk/engine`. Corrected in two places.
+- **`@codewalk/engine` has no `lint` task**, so no linter has ever run over this package.
+  Repo-root `bun run lint` also fails on pre-existing CRLF in `apps/web`. Both recorded as
+  deferred, neither touched here.
+- **Next:** all 14 tasks are `done`. Slice 4 merged as PR #4; slice 5 is the final PR. After
+  it merges the spec is code-complete and the next move is not code: supply `labels.yaml`
+  and run the measurement.
 
 ### 2026-07-26 (Slice 4 complete)
 
