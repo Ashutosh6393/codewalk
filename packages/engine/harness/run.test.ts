@@ -134,4 +134,59 @@ describe("runLabels — harness loop (T-17)", () => {
 
     expect(second!.status).toBe("ok");
   });
+
+  /**
+   * `next-auth-app` is a real on-disk fixture (same spirit as `alias-repo`): a
+   * `package.json` declaring `next` + `next-auth` as dependencies, so `detectFramework`
+   * returns "next" and tier 1 fires for real — unlike `alias-repo` above, whose
+   * `selected` is `[]` and can't tell a correct hits/misses wiring from a swapped one.
+   *
+   * Verified directly against `select()` before writing these assertions: the kept
+   * universe is `middleware.ts`, `package.json`, `tsconfig.json`, `lib/db.ts`, and
+   * `app/api/auth/[...nextauth]/route.ts`; tier 1's playbook globs match the first and
+   * last, so `result.anchors` is exactly `["middleware.ts",
+   * "app/api/auth/[...nextauth]/route.ts"]`. The label below marks `middleware.ts` (a
+   * real anchor, so a real hit) and `lib/db.ts` (an ordinary non-auth file the cascade
+   * never selects, so a real miss) — giving recall = 1/2, strictly between 0 and 1.
+   */
+  test("T-17: on a real next-auth fixture, tier 1 fires with genuine hits and misses", async () => {
+    const FIXTURE_ROOT = `${import.meta.dir}/../src/__fixtures__/next-auth-app`;
+    const labels: Labels = {
+      repos: [
+        {
+          name: "next-auth-app",
+          url: "https://example.test/owner/next-auth-app",
+          sha: "c".repeat(40),
+          category: "framework-fixture",
+          hasAuth: true,
+          anchors: ["middleware.ts", "lib/db.ts"],
+        },
+      ],
+    };
+
+    const records = await runLabels(labels, {
+      clone: async () => FIXTURE_ROOT,
+    });
+
+    expect(records).toHaveLength(1);
+    const record = records[0]!;
+    if (record.status !== "ok") {
+      throw new Error(`expected an ok record, got errored: ${JSON.stringify(record)}`);
+    }
+
+    expect(record.tier).toBe(1);
+    expect(record.confidence).toBe(confidenceForTier[1]);
+
+    expect(record.selected.map(posix).sort()).toEqual(
+      ["middleware.ts", "app/api/auth/[...nextauth]/route.ts"].sort(),
+    );
+
+    expect(record.hits.map(posix)).toEqual(["middleware.ts"]);
+    expect(record.misses.map(posix)).toEqual(["lib/db.ts"]);
+
+    expect(record.recall).toBeGreaterThan(0);
+    expect(record.recall).toBeLessThan(1);
+
+    expect(record.hasAuth).toBe(true);
+  });
 });

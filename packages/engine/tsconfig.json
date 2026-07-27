@@ -4,8 +4,9 @@
     "noEmit": true
   },
   "include": ["src/**/*.ts", "harness/**/*.ts"],
-  // `__fixtures__/alias-repo` is a synthetic repo tree read off disk by the graph
-  // adapter, not source of this package. It carries its own tsconfig (that is the
-  // point — it exercises alias resolution) and must not be compiled under ours.
-  "exclude": ["node_modules", "src/__fixtures__/alias-repo"]
+  // `__fixtures__/alias-repo` and `__fixtures__/next-auth-app` are synthetic repo trees
+  // read off disk by the graph adapter and the harness, not source of this package. Each
+  // carries its own tsconfig (that is the point — it exercises alias/framework resolution)
+  // and must not be compiled under ours.
+  "exclude": ["node_modules", "src/__fixtures__/alias-repo", "src/__fixtures__/next-auth-app"]
 }
