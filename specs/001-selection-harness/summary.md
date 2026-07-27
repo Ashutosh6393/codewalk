@@ -5,31 +5,41 @@ before any automated review has run. It must stand on its own.
 
 Read this, then the diff, then approve the PR.
 
-- **Slice:** 4 of 5 · **Branch:** `feat/selection-harness`
-- **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md` (D-17, D-20)
-- **Tasks:** 10–12 · **Tests:** 7 added (20 → 27 total), all passing
-- **Size:** 4 non-test files (`dictionary/auth.ts`, `select.ts`, `types.ts`,
-  `implementation.md`) + 3 test files + 3 fixtures. 225 lines changed in the 4 non-test
-  files (`git diff --stat dd50390..HEAD`, excluding tests/fixtures). Limit: 5–7 files
-  excl. tests, 500 lines — comfortably inside on both axes.
+- **Slice:** 5 of 5 · **Branch:** `feat/selection-harness`
+- **Spec:** `design.md` · **ADR:** `docs/adr/001-Initial-Architecture.md` (D-03, D-04, Future
+  work step 4)
+- **Tasks:** 13–14 · **Tests:** 9 added (27 → 36 total), all passing
+- **Size:** 10 non-test files, 236 lines (`git diff --stat aff02df..HEAD -- . ':!*.test.ts'`).
+  Full diffstat incl. tests: 12 files, 516 insertions, 7 deletions. Limit: 5–7 files excl.
+  tests, 500 lines — **lines are inside the limit, file count is not** (10 vs 7). Five of
+  those ten are the new `next-auth-app` fixture directory (`package.json`, `middleware.ts`,
+  `route.ts`, `lib/db.ts`, `tsconfig.json`) and two more are spec files. Reviewer's call
+  whether a five-file synthetic fixture tree counts as "one file" for the limit's intent;
+  flagging rather than deciding it silently.
 
-> **Process note:** Slices 1–3 are merged (PRs #1, #2, #3, all from
-> `feat/selection-harness`). This PR is Slice 4 alone. The **local** `main` ref is stale at
-> `2595f4d`, so `git merge-base HEAD main` misreports; `origin/main` is `dd50390` (PR #3's
-> merge) and that is the true base for this slice's diff.
+> **Process note:** Slice 4 (Tasks 10–12, PR not yet raised) and Slice 5 (this one, Tasks
+> 13–14) both sit on `feat/selection-harness`, unmerged, on top of each other. Slices 1–3 are
+> merged (#1, #2, #3). This summary and diff cover **Slice 5 only** — Task 13 (`dcc8dbb`),
+> Task 14 (`a20981d`), and a follow-up test commit (`8053b7c`) — measured against `aff02df`
+> (Slice 4's tip), not against `main`. If Slice 4 hasn't been reviewed and merged first, the
+> human is approving two unmerged slices' worth of behaviour change on one branch.
 
 ---
 
 ## TL;DR
 
-`select("auth")` now runs the **full three-tier cascade** instead of stopping at tier 1.
-A repo without a Next.js `next-auth` setup but with hand-rolled login/session code (tier 2,
-content keyword match) or with neither playbook nor vocabulary but a clear import-graph
-signal (tier 3, fan-in) now gets real anchors instead of an empty tier-1-only fallthrough.
-Confidence is read straight off which tier fired (high/medium/low). And critically, a repo
-with **no auth at all** now comes back with an honest empty result (`hasAuth: false`)
-instead of inventing an anchor from whatever file happens to have the most imports — every
-repo has import structure, so fan-in alone was never allowed to be the evidence.
+`bun run --filter '@codewalk/engine' harness` now exists and runs end to end: clone a repo at
+a pinned SHA into an SHA-keyed cache, run the same `select("auth")` cascade the rest of the
+engine uses, score the result against a hand-labelled `anchors` list, and print one JSON
+record per repo plus an aggregate recall number. That is the **measuring apparatus** the
+whole ADR has been building toward.
+
+It has never measured anything real. `labels.yaml` ships with `repos: []` — the ten
+hand-labelled repos are the operator's input, not this spec's to invent, and they haven't
+arrived yet. Run the command today and it prints `{"aggregateRecall":1}`: a vacuous pass
+over zero repos, per `scoreRecall`'s documented empty-denominator behaviour, not a real
+number. **Selection quality is still unvalidated.** This slice proves the harness can
+produce a number; it has not yet produced the number.
 
 ---
 
@@ -37,122 +47,100 @@ repo has import structure, so fan-in alone was never allowed to be the evidence.
 
 | File | Change | Why |
 |---|---|---|
-| `packages/engine/src/dictionary/auth.ts` | new | Auth keyword dictionary (tier 2): 15-term list, word-boundary matching, requires ≥2 distinct terms so one incidental "cookie" mention doesn't qualify a file. Also exports `authCandidates` — files with ≥1 term — the gate tier 3 ranks within. |
-| `packages/engine/src/select.ts` | modify | Adds tiers 2 and 3 to the cascade, replacing the tier-1-only placeholder from Slice 1. Tier 2 fires on a dictionary hit; tier 3 ranks `authCandidates` by fan-in, keeps the top 2, and drops zero-fan-in entries. |
-| `packages/engine/src/types.ts` | modify | Adds `hasAuth: boolean` to `SelectionResult` — the honest-absence flag (D-20). |
-| `packages/engine/src/__fixtures__/{hand-rolled-auth,no-vocabulary,no-auth}.ts` | new | Three synthetic repos, one per remaining harness category: tier-2 target, tier-3 target, and the no-auth case. |
-| `packages/engine/src/dictionary/auth.test.ts`, `select.cascade.test.ts`, `select.no-auth.test.ts` | new | T-13 (dictionary), T-12/T-14 (tier-3 fallback + cascade order), T-15 (honest none-found). |
-| `specs/001-selection-harness/implementation.md` | modify | Task states, SHAs, session notes. |
+| `packages/engine/harness/clone.ts` | new | `cloneAtSha(url, sha, cacheDir)`: `git init` + `remote add` + `fetch --depth 1 origin <sha>` + `checkout FETCH_HEAD`, because `git clone --depth 1` alone only ever gets you the default branch's HEAD, never an arbitrary historical SHA. Caches the working tree at `cacheDir/<sha>` so a repeat run for the same commit is a cache hit. A failed fetch removes the partial directory, so it cannot masquerade as a cache hit next run. |
+| `packages/engine/harness/run.ts` | new | `runLabels(labels, { clone })`: for each labelled repo, clone → build universe/graph/manifest → `select("auth")` → `scoreRecall` vs the label's `anchors` → `bucket()` for coverage → push a per-repo record. Clone is injected so the loop is unit-testable with no network. A clone failure becomes an `errored` record, not a thrown error — one unreachable repo must not abort the run over the other nine. Also defines the Zod `Labels` schema (40-hex-char SHA regex) and the `if (import.meta.main)` CLI entry point that reads `labels.yaml`, runs the loop, and prints per-repo JSON plus an aggregate recall line. |
+| `packages/engine/harness/labels.yaml` | new | The ground-truth file `run.ts` loads. Ships as `repos: []` with a commented worked example — see TL;DR. Parsed with `Bun.YAML`, so no YAML dependency was added. |
+| `packages/engine/src/__fixtures__/next-auth-app/**` | new | A second on-disk fixture (`package.json` declaring `next`+`next-auth`, `middleware.ts`, `app/api/auth/[...nextauth]/route.ts`, `lib/db.ts`, `tsconfig.json`). Added after Task 14 landed, specifically because the existing `alias-repo` fixture (no manifest, tier 3 bottoms out empty) can't discriminate a correctly-wired `run.ts` from a subtly wrong one — see the limitation below. |
+| `packages/engine/tsconfig.json` | modify | One exclude entry: `next-auth-app` added alongside the existing `alias-repo`. Same reason as the pre-existing entry — it's a synthetic repo tree with its own `tsconfig`, not source of this package. |
+| `packages/engine/harness/clone.test.ts` | new | T-18: builds a real two-commit local git repo in a temp dir, clones the *older* SHA (not HEAD), and asserts the checked-out content and SHA match — proving this isn't just "clone HEAD" — plus a cache-hit test (plants a sentinel file, re-clones, confirms it survives). |
+| `packages/engine/harness/run.test.ts` | new | T-17: `Labels` schema validation (accepts well-formed, rejects missing/malformed SHA); the loop against `alias-repo` (tier-3 honest-empty case); the clone-failure-continues-the-loop case; the `next-auth-app` real-hit case (added in the follow-up commit). |
+| `specs/001-selection-harness/design.md` | modify | Corrected the documented harness invocation in two places: `bun run --filter engine harness` matches no workspace — the package is `@codewalk/engine`. Fixed under the docs freshness contract, same commit as this summary. |
+| `specs/001-selection-harness/implementation.md` | modify | Task states, SHAs, slice state, session notes. |
 
-### How it works now
+`packages/engine/harness/recall.ts` is untouched this slice; it's mentioned only because
+`run.ts` is its first real consumer beyond the Slice-1 unit test.
 
-1. **Tier 1 (playbook)** — unchanged from Slice 1: Next.js convention anchors, high
-   confidence.
-2. **Tier 2 (dictionary)** — `matchAuthVocabulary` scans each file's path + content (with
-   `import`/`require` lines stripped first — an import specifier names another module, not
-   this file) for auth terms, and keeps files with 2 or more distinct terms. Medium
-   confidence.
-3. **Tier 3 (fan-in fallback)** — ranks `authCandidates(files, readFile)` (files with ≥1
-   auth term) by fan-in, descending, drops anything with zero fan-in, keeps the top 2. Low
-   confidence. `hasAuth` is `topFanIn.length > 0`.
-4. If nothing fires, the cascade returns tier 3's empty result: no anchors, `hasAuth:
-   false`, low confidence — never a thrown error, never an invented anchor.
+---
+
+## How the loop works
+
+```
+labels.yaml → for each repo:
+  clone(url, sha)        — cache hit if already cloned, else git init/fetch/checkout
+  → glob the working tree, apply keptUniverse() (ignore-list)
+  → buildGraph() + fanIn()
+  → parse package.json if present
+  → select("auth", { files, manifest, readFile, fanIn })   — the same pure cascade
+  → scoreRecall(result.anchors, label.anchors)             — hits/misses/recall/precision
+  → bucket(kept, result.anchors)                            — coverage %
+  → push { tier, confidence, selected, hits, misses, recall, precision, coverage, hasAuth }
+```
+
+A clone failure short-circuits that one repo into `{ status: "errored", name, error }` and
+the loop continues. The CLI entry point prints one JSON line per repo, then one aggregate
+line: `scoreRecall` run again over every selected file and every labelled anchor across all
+`ok` repos, pooled together.
 
 ---
 
 ## QA
 
-**What does this let a user do that they couldn't before?**
-Nothing user-facing yet — still no UI, no LLM. For the operator: `select("auth")` now
-produces a real answer for the two repo shapes Slice 1 couldn't handle (hand-rolled auth,
-no framework at all) plus a real "no auth here" for repos that genuinely have none, which
-is the case Slice 5's recall measurement most needs to not get wrong.
+**What does this let a reviewer do that they couldn't before?**
+Run the harness against any Git URL + SHA and get a recall/precision number for that one
+repo. Nothing more. There is still no real dataset behind it, so there is nothing to read a
+calibration threshold off yet — that was always Slice 5's job, and it's the one thing this
+slice cannot do until the operator supplies labels.
 
 **What happens when it fails?**
-There's no failure mode that throws. `repo.readFile` and `repo.fanIn` are optional; if
-absent, tiers 2 and 3 simply produce no candidates and the cascade falls through to the
-empty tier-3 result. A repo whose real auth code doesn't share any of the 15 hand-picked
-terms (see Deferred work) will be silently miscategorised as no-auth — that is a real
-false-negative risk the term list carries, not a bug the code hides.
+- Clone failure (bad URL, unreachable network, bad SHA) → recorded as `{status: "errored",
+  name, error}`, loop continues. Verified by `run.test.ts`'s ordered two-repo case.
+- Malformed `labels.yaml` (missing or bad-shaped SHA, etc.) → `Labels.parse` throws at load,
+  before any cloning starts. Fail fast, not a silent skip.
+- A repo with no `package.json` → `manifest` is `undefined`, `select` falls through tier 1 to
+  2/3 exactly as it does for any manifest-less repo (unchanged behaviour from Slice 4).
+- Nothing in this slice changes what `select()` does — `run.ts` is a caller, not a rewrite of
+  the cascade.
 
 **Does this touch existing behaviour?**
-Tier 1 and its test are unchanged. `bucket.ts`, `graph.ts`, `ignore.ts`, `recall.ts` are
-untouched — `select.no-auth.test.ts` calls the existing `bucket()` to prove the remainder
-still surfaces the no-auth repo's real files, but doesn't modify it. `types.ts` gained one
-field (see the note below on blast radius).
+No. `select.ts`, `bucket.ts`, `graph.ts`, `ignore.ts`, `recall.ts`, `types.ts` are all
+untouched — the diff for this slice is entirely new files (`clone.ts`, `run.ts`,
+`labels.yaml`, the new fixture) plus one line in `tsconfig.json` and the two spec files.
 
 **Any data migration / performance / security implications?**
-None. No DB, no network, no new dependency. `stripImportLines` and the term scan are
-per-file string operations over already-loaded content — same order of work as tier 2 in
-the design, nothing added that scales worse than linear in file count × content size.
+No DB, no migration. `cloneAtSha` shells out to `git` via `execFileSync` with an argument
+array — never a shell string — so a URL or SHA is never interpolated into a command line.
+That URL comes from `labels.yaml`, a committed file the operator controls, not untrusted
+external input. If `labels.yaml` ever accepts input from outside the repo, that assumption
+needs revisiting. Cloning is depth-1 and cached by SHA, so re-running the harness doesn't
+re-fetch.
 
 **What did we deliberately not do?**
-Rank tier 2's matched files (see Deferred work). Calibrate the term list or the two
-thresholds (`MIN_DISTINCT_TERMS`, tier-3 top-N) against real repos — that's Slice 5's job.
-Extend `Intent` beyond `"auth"` — no second subsystem was asked for this slice.
+Fill in real labels — not this spec's to invent (see TL;DR and Deferred work). Calibrate any
+threshold — there's nothing to calibrate against yet. Handle a partial or corrupt cache
+directory beyond "not present → re-clone" (the failure path deletes the directory, but no
+test forces a half-written working tree that survives a crash).
 
 ---
 
-## The mid-slice design correction (read this before approving)
+## A known limitation in the new fixture (read this before approving)
 
-Tier 3 as it landed in Slice 3 (fan-in only, no gate) would have ranked the **whole repo**
-by fan-in — meaning any repo with an import graph got anchors, including a repo with zero
-auth. That directly violates ADR-001 D-20 ("never invent an anchor"), and it's exactly the
-gap the ADR's own Future work section names: *"1–2 with no auth (does the engine say 'none
-found' instead of inventing it?)"*. This was caught during Task 12 (attempt 1 → 2), before
-merge, not by CI.
+`next-auth-app` was added, after Task 14 landed, specifically so T-17 exercises a real tier-1
+hit/miss instead of only the honest-empty case. It was mutation-checked in both directions:
 
-Two changes landed together to close it:
+- Swapping `hits`/`misses` inside `recall.ts` **does** make the new test fail — it
+  discriminates a broken recall diff.
+- Changing `run.ts`'s `selected: result.anchors` to `result.provenance.anchors` **does not**
+  make any test fail. Verified twice, independently, by editing the line, running the suite,
+  and reverting. The reason: in `select.ts`, tier 1 assigns the literal same array to both
+  `anchors` and `provenance.anchors`. Every fixture currently in the harness suite bottoms
+  out on tier 1 or tier-3-empty, and tier 3 sets `provenance.anchors: []` unconditionally
+  regardless of what's selected — so a fixture that reaches tier 2 or tier 3 *with a
+  non-empty top-level `anchors`* is the only kind that would catch this class of rewiring.
+  No such fixture exists in `run.test.ts` yet.
 
-1. **Import lines are stripped before term-counting** (`stripImportLines` in
-   `dictionary/auth.ts`). An import specifier names another module — `import { checkAuth }
-   from "./auth"` is that module's signal, not the importing file's. Without this fix, every
-   ordinary consumer of an auth module scored auth terms it never actually contained; it
-   was tripping tier 2 on three files in the `no-vocabulary` fixture that were never
-   supposed to match.
-2. **Tier 3 now ranks only `authCandidates`** — files carrying at least one auth term —
-   and drops any candidate with zero fan-in. Fan-in became a **ranker among plausible
-   files**, never evidence on its own.
-
-A simpler fix was tried first and discarded: a repo-level "does this repo mention auth
-anywhere" gate. It cannot work — the `no-auth` fixture's own `package.json` contains
-`"name": "no-auth"`, which matches `\bauth\b` on a word boundary. A repo-wide gate would
-have let that one incidental match unlock the whole cascade for a repo that has no auth
-anywhere else. The per-file, per-candidate gate (`authCandidates`) doesn't have this hole
-because `package.json` itself has no fan-in and isn't a plausible auth *file*.
-
----
-
-## Blast-radius note
-
-`design.md`'s Slice 4 blast radius lists `src/dictionary/auth.ts` and `src/select.ts`
-only. `src/types.ts` gained one field (`hasAuth`) that wasn't in that list — approved by
-the operator at the slice gate before work began. Reasoning: T-15 requires the engine to
-*state* honest absence as a fact, not have every future consumer re-derive
-`anchors.length === 0` for itself.
-
----
-
-## Known looseness (reviewer's call, not a defect)
-
-`types.ts` documents `hasAuth` as "derived mechanically… never hand-set per tier." In
-`select.ts`, tiers 1 and 2 actually write the literal `true` inside an `if (matched.length
-> 0)` guard, rather than computing `matched.length > 0` inline like tier 3 does. The
-invariant holds — `true` only ever appears when `matched.length > 0` is already true, so
-behaviourally it's the same thing — but the comment claims a stronger mechanical guarantee
-than the code structurally enforces. Worth a look, not worth blocking on.
-
----
-
-## Repo-history note
-
-Task 11's implementation (`c2b8c26`) and its tests (`ecc8ba5`) landed as two separate
-commits instead of one atomic commit, so neither is independently revertible.
-Additionally, `c2b8c26` and `8b903c6` are missing the `Co-Authored-By`/`Claude-Session`
-trailers the other two slice-4 commits carry (`f4b0694`, `ecc8ba5` have them). Both are
-coder agents committing without being asked to at that point. Neither was rebased to clean
-up: `feat/selection-harness` is shared and already has three PRs merged off it, so
-rewriting its history was out of bounds.
+This is not a bug in the shipped code — `result.anchors` is correct today — but it is a real
+gap in what the test suite would catch if someone later "simplified" `run.ts` to read from
+`provenance.anchors` instead.
 
 ---
 
@@ -164,14 +152,43 @@ bun install
 cd packages/engine && bun test && bun run check-types
 ```
 
-1. `bun test` → expect **27 pass**, 0 fail, 9 files, 74 `expect()` calls.
-2. Read `src/select.no-auth.test.ts` — it's the acceptance test for the mid-slice fix
-   above: `noAuth.fanIn` hands tier 3 clear winners (`lib/db.ts` at 5, `lib/analytics.ts`
-   at 3) specifically to prove the cascade refuses to bite anyway.
-3. Break it on purpose: in `dictionary/auth.ts`, change `authCandidates`'s filter from
-   `>= 1` back to returning every file (i.e. make tier 3 rank the whole repo again) →
-   `select.no-auth.test.ts`'s `expect(result.anchors).toEqual([])` fails, because
-   `lib/db.ts` (5 imports, zero auth terms) becomes the top pick.
+1. `bun test` → expect **36 pass**, 0 fail, 11 files, 107 `expect()` calls (up from 27 at
+   Slice 4's tip).
+2. `bun run --filter '@codewalk/engine' harness` (from repo root) → prints
+   `{"aggregateRecall":1}` and nothing else, because `labels.yaml` is empty. This is the
+   vacuous-pass behaviour, not a bug.
+3. Break it on purpose: in `harness/clone.ts`, change the `checkout` target from
+   `"FETCH_HEAD"` to `"HEAD"` → `clone.test.ts`'s "checks out the working tree at the exact
+   pinned SHA, not HEAD" fails, because the source fixture repo's default-branch HEAD is the
+   *newer* of its two commits, not the pinned older one the test asks for.
+4. Break it differently: in `harness/run.ts`, change `selected: result.anchors` to
+   `selected: result.provenance.anchors` → the full suite still passes (see the limitation
+   above). This is the one worth sitting with before approving — it's a real gap, not a
+   hypothetical.
+
+---
+
+## `cloneAtSha` has not run against a real remote
+
+T-18 exercises it against a small real local git repo built fresh in a temp dir (`git init` +
+two commits) — the exact "small real/local repo" `design.md`'s T-18 description allows. It
+has never fetched from an actual `https://github.com/...` URL. The `git fetch --depth 1
+origin <sha>` recipe depends on the remote server allowing fetch-by-arbitrary-SHA
+(`uploadpack.allowReachableSHA1InWant`). GitHub allows this. It is unproven in this codebase
+and will be exercised for the first time against the operator's real label set, not before.
+
+---
+
+## Test revisions in this slice
+
+**None** — no test was created, edited, weakened, skipped, or deleted to force a pass. The
+test count only rose: 27 → 30 (T-18) → 35 (T-17) → 36 (the fixture hit case).
+
+One `as any` was removed from `run.test.ts` a few minutes after that line was written, within
+the same slice and before it was committed. This is a **style fix**, not a semantic test
+change — it satisfies CLAUDE.md's "never `as any`" rule and did not alter what the test
+asserts or which behaviour it covers. Flagging it here anyway so it's visible rather than
+found later.
 
 ---
 
@@ -179,34 +196,37 @@ cd packages/engine && bun test && bun run check-types
 
 | Test | Verifies | File |
 |---|---|---|
-| T-13 | Dictionary matches files with ≥2 distinct auth terms, rejects a single incidental mention | `src/dictionary/auth.test.ts` |
-| T-12 | Tier-3 fan-in fallback returns the top-2 files by fan-in when tiers 1/2 don't fire; confidence=low | `src/select.cascade.test.ts` |
-| T-14 | Cascade degrades in tier order across three fixtures: tier1→high, tier2→medium, tier3→low | `src/select.cascade.test.ts` |
-| T-15 | No-auth repo returns empty anchors + `hasAuth=false`, and its files still land in the remainder via `bucket()` | `src/select.no-auth.test.ts` |
+| T-18 | `cloneAtSha` checks out the pinned SHA (not HEAD), keys the working tree by SHA, and treats a second call for the same SHA as a cache hit (no re-clone) | `harness/clone.test.ts` |
+| T-17 | `Labels` schema accepts a well-formed entry and rejects a missing or malformed SHA; `runLabels` produces one record per repo with tier/confidence/selected/hits/misses/coverage; a clone failure is recorded as `errored` and the loop continues past it; a real next-auth fixture produces a genuine partial hit (recall strictly between 0 and 1) | `harness/run.test.ts` |
 
-**Not covered (by design, later slices):** running this cascade against real cloned
-repos (Slice 5); calibrating the term list/thresholds from that measurement.
-
-### Test revisions in this slice
-
-**None.**
+**Not covered (by design, later — when labels arrive):** any real repo's recall number;
+threshold calibration read off that number; the tier-2/tier-3 provenance-vs-anchors
+discrimination gap above.
 
 ---
 
-## Acceptance criteria (design.md, Slice 4)
+## Acceptance criteria (design.md, Slice 5)
 
-> "the cascade degrades in order; confidence = the tier that fired; a no-auth repo yields
-> an honest 'none found' with files still in the remainder."
+> "`bun run --filter '@codewalk/engine' harness` clones each labelled repo at its SHA, runs
+> selection, and emits one log record per repo (tier fired, files selected, hit/miss,
+> confidence, coverage %); anchor recall is computed across the set. A clone failure is
+> recorded and skipped, not fatal."
 
-- **Cascade degrades in order** — satisfied. T-14 exercises all three tiers on three
-  distinct fixtures and confirms `provenance.tier` matches which one fired, tier 1 before
-  tier 2 before tier 3, no tier skipped or reordered.
-- **Confidence = the tier that fired** — satisfied. `confidenceForTier` (`types.ts`) is the
-  single source of the 1→high/2→medium/3→low map; every tier in `select.ts` reads from it
-  rather than hand-setting a confidence string.
-- **No-auth repo yields honest "none found," files still in remainder** — satisfied by
-  T-15: `hasAuth: false`, `anchors: []`, and a direct assertion that all 7 of the no-auth
-  fixture's real files land in `bucket()`'s `unknown` list, not dropped.
+- **Clones each labelled repo at its SHA** — satisfied mechanically (T-18), **unproven**
+  against real remotes (see the note above), and there is nothing in `labels.yaml` to clone
+  yet.
+- **Emits one log record per repo with tier/selected/hit-miss/confidence/coverage** —
+  satisfied. `run.test.ts`'s two `ok`-path tests assert every field on the record.
+- **Anchor recall computed across the set** — satisfied mechanically: the CLI entry point
+  pools every `ok` repo's selected files and every label's anchors into one `scoreRecall`
+  call and prints `aggregateRecall`. Against the current empty `labels.yaml` this pools zero
+  repos, which is why it prints `1` — a vacuous pass, not a validated recall figure.
+- **A clone failure is recorded and skipped, not fatal** — satisfied. The ordered two-repo
+  test in `run.test.ts` proves the second repo's record still appears after the first errors.
+
+The one thing the acceptance criteria implies but this slice cannot deliver: an actual recall
+number computed over real, hand-labelled repos. That's blocked on the operator's labels, not
+on any code in this diff.
 
 ---
 
@@ -214,23 +234,28 @@ repos (Slice 5); calibrating the term list/thresholds from that measurement.
 
 | Item | Why deferred | Worth doing? |
 |---|---|---|
-| Calibrate cluster/fan-in thresholds | Needs real-repo data from Slice 5 | yes (Slice 5) |
-| **Auth term list + `MIN_DISTINCT_TERMS`/tier-3 top-N thresholds** | Hand-picked guesses this slice, not measured. Exactly the "instrumented defaults, not guesses" Slice 5's measurement run is for. | yes (Slice 5) |
-| tree-sitter symbol extraction | Feeds the LLM packet, not selection | yes (with the explanation call) |
-| Cite-failure threshold (D-19) | Needs the LLM's citations; out of harness scope | yes (post-harness) |
-| LLM explanation call, report writer, chat, UI, DB, queue | Downstream of proven selection; out of ADR harness scope | yes (own ADRs/specs) |
-| Test for `fanIn`'s importer-dedupe path | Still no fixture forces a double-import from one file (carried from Slice 3) | yes |
-| Monorepo/workspace-spanning graph resolution | No workspace fixture built yet | yes, if a labelled repo (Slice 5) needs it |
-| **Tier 2 returns matched files unranked** | `matchAuthVocabulary` filters, doesn't order by match strength; no consumer needed ordering yet | maybe — only if Slice 5 shows tier-2 anchor lists need trimming |
-| **`select`'s `Intent` type is `"auth"`-only** | The dictionary is auth-specific by construction; a second subsystem needs its own dictionary and its own `Intent` member | yes, whenever a second subsystem is asked for — not this feature |
-| Root `package.json`'s `typecheck` script calls `turbo run typecheck`, but `turbo.json` defines the task as `check-types` — `bun run typecheck` fails with "Could not find task" | Pre-existing, unrelated to this slice; reporting per core-principles.md rather than fixing in an unrelated diff | yes, small fix, someone else's diff |
-| `.claude/hooks/check-test-count.sh` counts test declarations with a recursive grep that doesn't exclude `node_modules`, so its baseline (1385) isn't the repo's actual test count | Pre-existing, still works as a monotonic guard (1385→1392 this slice); the absolute number is just meaningless | maybe, low priority |
+| **The actual measurement run** — real anchor recall over the 10 hand-labelled repos | Blocked on the operator supplying `labels.yaml` (resolved open question: not this spec's to invent) | yes — this is the whole point of the ADR; nothing about selection quality is proven until this runs |
+| **Calibrate the auth term list, `MIN_DISTINCT_TERMS`, tier-3 top-N, and the remainder cluster cutoff** | Needs the real-repo measurement above to read numbers off | yes, immediately after real labels land |
+| **Tier-2/tier-3 provenance-vs-anchors discrimination gap** (see limitation above) | No fixture yet reaches tier 2/3 with a non-empty top-level `anchors` while `provenance.anchors` stays `[]` | yes — a small, cheap fixture addition, no design change |
+| Cite-failure threshold (D-19) | Needs the LLM's citations; explicitly out of harness scope. Per the spec's resolved open question the harness settles two of three thresholds, and this is the deferred third | yes, when the explanation call lands |
+| tree-sitter symbol/span extraction | Feeds the LLM explanation packet, not selection; tier 2 is served by keyword matching here | yes, with the explanation call |
+| Tier 2 returns matched files unranked | Carried forward from Slice 4 — no consumer has needed ordering yet | maybe — only if the real measurement shows tier-2 anchor lists need trimming |
+| `select`'s `Intent` type is `"auth"`-only | Carried forward from Slice 4 — a second subsystem needs its own dictionary and `Intent` member | yes, whenever a second subsystem is asked for — not this feature |
+| Test for `fanIn`'s importer-dedupe path | Carried forward from Slice 3 — still no fixture forces a double-import from one file | yes |
+| Monorepo/workspace-spanning graph resolution | No workspace fixture built yet | yes, if a real labelled repo turns out to be a monorepo |
+| Partial or corrupted cache directory in `cloneAtSha` | The failure path deletes the directory, but a crash mid-checkout could still leave one that reads as a cache hit | maybe, low priority until observed |
+| Repo-root `bun run lint` fails on `apps/web`'s `package.json`/`tsconfig.json` (CRLF vs LF) | Pre-existing, untouched by this slice. Note the related gap: `@codewalk/engine` has **no `lint` task at all**, so no linter ran over `clone.ts`/`run.ts` — `check-types` and `bun test` are the only automated checks this diff passed | yes, someone else's diff |
+| Root `package.json`'s `typecheck` script calls a task `turbo.json` doesn't define | Pre-existing, unrelated to this slice; reporting rather than fixing in an unrelated diff | yes, small fix, someone else's diff |
 
 ---
 
 ## Documentation updated
 
-- [x] `specs/001-selection-harness/implementation.md` — task states, SHAs, slice state, session notes
-- [ ] No new ADR needed — this slice implements decisions already made in ADR-001 (D-17, D-20)
-- [ ] No `tech-stack.yaml` change — no new dependency
-- [ ] No generated blocks affected (`bun run docs:check` clean)
+- [x] `specs/001-selection-harness/implementation.md` — task states, SHAs, slice state,
+  session notes
+- [x] `specs/001-selection-harness/design.md` — corrected the harness invocation in two
+  places, same commit as this summary
+- [x] No new ADR needed — this slice implements decisions already made in ADR-001 (D-03,
+  D-04, Future work step 4)
+- [x] No `tech-stack.yaml` change — no new dependency (`Bun.YAML` is built in)
+- [x] No generated blocks affected (`bun run docs:check` → "Docs are in sync.")

@@ -77,7 +77,7 @@ Max 5–7 files (excluding tests) and 500 lines per slice.
 | 2 | Tasks 5–7 — universe + coverage ledger | 5 | `merged` | #2 |
 | 3 | Tasks 8–9 — dependency graph + fan-in | 2 | `merged` | #3 |
 | 4 | Tasks 10–12 — full cascade: tiers 1→2→3 | 3 | `in-review` | — |
-| 5 | Tasks 13–14 — measurement over the labelled set | ~3 | `pending` | — |
+| 5 | Tasks 13–14 — measurement over the labelled set | 10 | `in-review` | — |
 
 ---
 
@@ -101,6 +101,38 @@ A revision on a task that was failing gets extra scrutiny from the human reviewe
 ## Session notes
 
 Newest first. Keep entries short — this is a handoff, not a diary.
+
+### 2026-07-27 (Slice 5 complete)
+
+- **Done:** Tasks 13–14. `cloneAtSha` (dcc8dbb), `runLabels` + `labels.yaml` (a20981d), plus
+  an auth-bearing fixture so T-17 proves a real hit (8053b7c). 36 tests pass (+9),
+  typecheck clean, `docs:check` in sync. No test revisions.
+- **The harness has measured nothing.** `labels.yaml` ships `repos: []` — the 10 hand-labelled
+  repos are the operator's input per the spec's resolved open question, confirmed at this
+  gate. `bun run --filter '@codewalk/engine' harness` prints `{"aggregateRecall":1}`, a
+  vacuous pass over zero repos. The apparatus works; the number does not exist yet.
+- **Blast radius widened by agreement.** T-17 originally ran only against `alias-repo`, whose
+  cascade honestly bottoms out at tier 3 with no anchors — so every labelled file was a miss
+  and the assertions held identically whether `scoreRecall`'s hits/misses were wired right or
+  swapped. Operator approved adding `src/__fixtures__/next-auth-app/` (tier 1 fires, one hit,
+  one miss, recall 0.5) plus one `tsconfig.json` exclude entry, matching the existing
+  `alias-repo` precedent.
+- **Watch out for:** the same mutation check on `run.ts`'s `selected: result.anchors` →
+  `result.provenance.anchors` leaves the suite **green**, because tier 1 assigns the same
+  array to both fields in `select.ts` and tier 3 hardcodes `provenance.anchors: []`. Only a
+  tier-2/3 fixture with non-empty top-level anchors would catch that rewiring. Recorded in
+  `summary.md` → Deferred work.
+- **`cloneAtSha` has never hit a real remote.** T-18 runs against a local temp repo (which
+  the design allows). `fetch --depth 1 origin <sha>` needs the server to permit
+  fetch-by-SHA; GitHub does, but it is unproven here until real labels arrive.
+- **Doc fix:** `design.md` documented the runner as `bun run --filter engine harness`, which
+  matches no workspace — the package is `@codewalk/engine`. Corrected in two places.
+- **`@codewalk/engine` has no `lint` task**, so no linter has ever run over this package.
+  Repo-root `bun run lint` also fails on pre-existing CRLF in `apps/web`. Both recorded as
+  deferred, neither touched here.
+- **Next:** all 14 tasks are `done`. Slices 4 and 5 are both unmerged on this branch — review
+  and merge slice 4 first, then this one. After that the spec is code-complete and the next
+  move is not code: supply `labels.yaml` and run the measurement.
 
 ### 2026-07-26 (Slice 4 complete)
 
